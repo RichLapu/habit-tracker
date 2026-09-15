@@ -395,7 +395,7 @@ export default function Home() {
           <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-blue-500/30">
             <Zap size={32} className="text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold text-center text-gray-900 dark:text-white mb-2 tracking-tight">Rastreador PRO</h1>
+          <h1 className="text-3xl font-extrabold text-center text-gray-900 dark:text-white mb-2 tracking-tight">Habit Tracker</h1>
           <p className="text-center text-gray-500 dark:text-gray-400 mb-8 font-medium">Eleve sua rotina ao próximo nível.</p>
           <div className="flex gap-4 mb-6">
             <button onClick={() => { setAuthMode("login"); setAuthError(""); }} className={`flex-1 py-2 font-bold border-b-2 transition-colors ${authMode === "login" ? "border-blue-600 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-400 hover:text-gray-600"}`}>Entrar</button>
