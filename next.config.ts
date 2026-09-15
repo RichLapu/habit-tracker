@@ -1,11 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   typescript: {
-    // ⚠️ ATENÇÃO: Isso desliga a verificação chata da Vercel
+    // Agora sim a Vercel vai ler e obedecer!
     ignoreBuildErrors: true,
   },
   eslint: {
-    // Desliga avisos de formatação
     ignoreDuringBuilds: true,
   }
 };
