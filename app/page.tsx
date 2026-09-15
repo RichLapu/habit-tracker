@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame } from "lucide-react";
 
 type Habit = {
@@ -26,6 +27,7 @@ const COLOR_GRADIENTS = [
 export default function Home() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
+  const router = useRouter(); // <- Adicionado para forçar a limpeza de cache
   
   const [habits, setHabits] = useState<Habit[]>([]);
   const [newHabit, setNewHabit] = useState("");
@@ -252,6 +254,7 @@ export default function Home() {
         setNewHabit("");
         setSelectedTimes([]);
         showToast("Hábito criado com sucesso!");
+        router.refresh(); // Limpa cache do Next
       }
     } catch (error) {
       console.error("Erro ao criar:", error);
@@ -265,6 +268,7 @@ export default function Home() {
         setHabits(habits.filter((h) => h.id !== deleteModal.habitId));
         setDeleteModal({ isOpen: false, habitId: "", title: "" });
         showToast("Hábito removido!");
+        router.refresh(); // Limpa cache do Next
       }
     } catch (error) {
       console.error("Erro ao deletar:", error);
@@ -300,6 +304,7 @@ export default function Home() {
         setHabits(habits.map(h => h.id === editModal.habitId ? { ...h, title: editTitle, reminderTimes: reminderTimesStr } : h));
         setEditModal({ isOpen: false, habitId: "" });
         showToast("Hábito atualizado!");
+        router.refresh(); // Limpa cache do Next
       }
     } catch (error) {
       console.error("Erro ao editar:", error);
@@ -330,6 +335,7 @@ export default function Home() {
     }));
     try {
       await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
+      router.refresh(); // Força a atualização do servidor para bater com o banco de dados
     } catch (error) {
       fetchHabits(); 
     }
@@ -639,6 +645,23 @@ export default function Home() {
             })
           )}
         </div>
+        
+        {/* --- RODAPÉ PERSONALIZADO --- */}
+        <footer className="mt-12 pt-8 pb-4 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200/50 dark:border-gray-800/50">
+          <p>&copy; {new Date().getFullYear()} Habit Tracker. Todos os direitos reservados.</p>
+          <p className="mt-1">
+            Desenvolvido por{" "}
+            <a 
+              href="https://www.linkedin.com/in/richard-lapuente/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+            >
+              Richard Lapuente
+            </a>
+          </p>
+        </footer>
+
       </div>
 
       {/* --- MODAL DO ALARME / NOTIFICAÇÃO (DESPERTADOR FRONTEND) --- */}
