@@ -157,8 +157,9 @@ export default function Home() {
     if (!logs || logs.length === 0) return 0;
     
     const normalizedDates = [...new Set(logs.map(l => {
-      const d = new Date(l.date);
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      // A MÁGICA: Cortamos apenas o Ano, Mês e Dia do texto, ignorando o fuso!
+      const [year, month, day] = l.date.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day).getTime();
     }))].sort((a,b) => b - a);
 
     const now = new Date();
@@ -195,8 +196,9 @@ export default function Home() {
       if (habit.daysOfWeek && !habit.daysOfWeek.split(',').includes(todayDayOfWeek)) return;
 
       const isCompleted = habit.logs.some(log => {
-        const logDate = new Date(log.date);
-        return logDate.getDate() === now.getDate() && logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+        const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+        const today = new Date();
+        return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
       });
       if (isCompleted) return;
 
@@ -372,8 +374,9 @@ export default function Home() {
       if (habit.id === id) {
         const today = new Date();
         const isCompleted = habit.logs.some(log => {
-          const logDate = new Date(log.date);
-          return logDate.getDate() === today.getDate() && logDate.getMonth() === today.getMonth() && logDate.getFullYear() === today.getFullYear();
+          const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+          const today = new Date();
+          return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
         });
         
         let newLogs = [];
@@ -427,9 +430,9 @@ export default function Home() {
       days.push(d.getTime());
     }
     const logDates = logs.map(log => {
-      const d = new Date(log.date);
-      d.setHours(0,0,0,0);
-      return d.getTime();
+      // A mesma mágica: pegamos o texto puro da data
+      const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day).getTime();
     });
 
     return (
@@ -440,7 +443,7 @@ export default function Home() {
             <div 
               key={dayTime} 
               className={`min-w-[14px] h-[14px] rounded-[4px] transition-all duration-300 ${isDone ? `bg-gradient-to-tr ${themeGradient} shadow-md` : 'bg-gray-200 dark:bg-gray-800'}`} 
-              title={new Date(dayTime).toLocaleDateString()} 
+              title={new Date(dayTime).toLocaleDateString('pt-BR')} 
             />
           );
         })}
@@ -643,8 +646,9 @@ export default function Home() {
             habits.map((habit) => {
               const today = new Date();
               const isCompleted = habit.logs.some(log => {
-                const logDate = new Date(log.date);
-                return logDate.getDate() === today.getDate() && logDate.getMonth() === today.getMonth() && logDate.getFullYear() === today.getFullYear();
+                const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+                const today = new Date();
+                return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
               });
 
               const realStreak = calculateRealStreak(habit.logs);
