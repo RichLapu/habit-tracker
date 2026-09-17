@@ -5,17 +5,18 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame, PauseCircle, PlayCircle } from "lucide-react";
 
 type Habit = {
   id: string;
   title: string;
   createdAt: string;
   reminderTimes: string | null;
+  isActive: boolean;
+  daysOfWeek: string | null;
   logs: { date: string }[];
 };
 
-// Paleta dinâmica de gradientes para dar identidade a cada hábito
 const COLOR_GRADIENTS = [
   "from-blue-500 to-cyan-400 shadow-blue-500/50",
   "from-purple-500 to-pink-500 shadow-purple-500/50",
@@ -24,15 +25,26 @@ const COLOR_GRADIENTS = [
   "from-indigo-500 to-violet-500 shadow-indigo-500/50"
 ];
 
+const WEEK_DAYS = [
+  { value: "0", label: "D" },
+  { value: "1", label: "S" },
+  { value: "2", label: "T" },
+  { value: "3", label: "Q" },
+  { value: "4", label: "Q" },
+  { value: "5", label: "S" },
+  { value: "6", label: "S" },
+];
+
 export default function Home() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
-  const router = useRouter(); // <- Adicionado para forçar a limpeza de cache
+  const router = useRouter(); 
   
   const [habits, setHabits] = useState<Habit[]>([]);
   const [newHabit, setNewHabit] = useState("");
   const [timeInput, setTimeInput] = useState("");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [selectedDays, setSelectedDays] = useState<string[]>(["0", "1", "2", "3", "4", "5", "6"]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -43,6 +55,8 @@ export default function Home() {
   const [editTitle, setEditTitle] = useState("");
   const [editTimeInput, setEditTimeInput] = useState("");
   const [editSelectedTimes, setEditSelectedTimes] = useState<string[]>([]);
+  const [editSelectedDays, setEditSelectedDays] = useState<string[]>([]);
+  const [editIsActive, setEditIsActive] = useState(true);
 
   const [nativeNotifGranted, setNativeNotifGranted] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -139,7 +153,6 @@ export default function Home() {
     }
   };
 
-  // --- O NOVO CALCULADOR DE OFENSIVA INFALÍVEL ---
   const calculateRealStreak = (logs: {date: string}[]) => {
     if (!logs || logs.length === 0) return 0;
     
@@ -168,9 +181,7 @@ export default function Home() {
     return streak;
   };
 
-  // ==========================================
-  // MOTOR DE NOTIFICAÇÕES FRONTEND
-  // ==========================================
+  // MOTOR DE NOTIFICAÇÕES (Agora respeita dias ativos e inativos)
   useEffect(() => {
     if (habits.length === 0 || status !== "authenticated") return;
     const now = new Date();
@@ -178,8 +189,13 @@ export default function Home() {
     
     const currentHourMin = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
     const todayStr = now.toLocaleDateString('pt-BR');
+    const todayDayOfWeek = now.getDay().toString();
 
     habits.forEach(habit => {
+      // Ignora se estiver pausado ou não for o dia configurado
+      if (!habit.isActive) return;
+      if (habit.daysOfWeek && !habit.daysOfWeek.split(',').includes(todayDayOfWeek)) return;
+
       const isCompleted = habit.logs.some(log => {
         const logDate = new Date(log.date);
         return logDate.getDate() === now.getDate() && logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
@@ -239,22 +255,38 @@ export default function Home() {
     }
   };
 
+  const toggleDaySelection = (dayValue: string, isEdit: boolean = false) => {
+    if (isEdit) {
+      setEditSelectedDays(prev => prev.includes(dayValue) ? prev.filter(d => d !== dayValue) : [...prev, dayValue].sort());
+    } else {
+      setSelectedDays(prev => prev.includes(dayValue) ? prev.filter(d => d !== dayValue) : [...prev, dayValue].sort());
+    }
+  };
+
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newHabit.trim()) return;
+    if (!newHabit.trim() || selectedDays.length === 0) {
+      showToast("Dê um nome ao hábito e selecione pelo menos um dia!");
+      return;
+    }
     try {
       const response = await fetch("/api/habits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newHabit, reminderTimes: selectedTimes.length > 0 ? selectedTimes.join(",") : null }),
+        body: JSON.stringify({ 
+          title: newHabit, 
+          reminderTimes: selectedTimes.length > 0 ? selectedTimes.join(",") : null,
+          daysOfWeek: selectedDays.join(",")
+        }),
       });
       if (response.ok) {
         const addedHabit = await response.json();
         setHabits([{ ...addedHabit, logs: [] }, ...habits]);
         setNewHabit("");
         setSelectedTimes([]);
+        setSelectedDays(["0", "1", "2", "3", "4", "5", "6"]); // Reseta para todos os dias
         showToast("Hábito criado com sucesso!");
-        router.refresh(); // Limpa cache do Next
+        router.refresh(); 
       }
     } catch (error) {
       console.error("Erro ao criar:", error);
@@ -268,16 +300,34 @@ export default function Home() {
         setHabits(habits.filter((h) => h.id !== deleteModal.habitId));
         setDeleteModal({ isOpen: false, habitId: "", title: "" });
         showToast("Hábito removido!");
-        router.refresh(); // Limpa cache do Next
+        router.refresh(); 
       }
     } catch (error) {
       console.error("Erro ao deletar:", error);
     }
   };
 
+  const toggleHabitActiveStatus = async (habit: Habit) => {
+    const newStatus = !habit.isActive;
+    setHabits(habits.map(h => h.id === habit.id ? { ...h, isActive: newStatus } : h));
+    try {
+      await fetch(`/api/habits/${habit.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: habit.title, reminderTimes: habit.reminderTimes, isActive: newStatus, daysOfWeek: habit.daysOfWeek }),
+      });
+      showToast(newStatus ? "Hábito retomado!" : "Hábito pausado!");
+      router.refresh();
+    } catch (error) {
+      fetchHabits();
+    }
+  };
+
   const openEdit = (habit: Habit) => {
     setEditTitle(habit.title);
     setEditSelectedTimes(habit.reminderTimes ? habit.reminderTimes.split(",") : []);
+    setEditSelectedDays(habit.daysOfWeek ? habit.daysOfWeek.split(",") : ["0", "1", "2", "3", "4", "5", "6"]);
+    setEditIsActive(habit.isActive);
     setEditTimeInput("");
     setEditModal({ isOpen: true, habitId: habit.id });
   };
@@ -291,20 +341,21 @@ export default function Home() {
   };
 
   const saveEdit = async () => {
-    if (!editTitle.trim()) return;
+    if (!editTitle.trim() || editSelectedDays.length === 0) return;
     try {
       const reminderTimesStr = editSelectedTimes.length > 0 ? editSelectedTimes.join(",") : null;
+      const daysOfWeekStr = editSelectedDays.join(",");
       const response = await fetch(`/api/habits/${editModal.habitId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: editTitle, reminderTimes: reminderTimesStr }),
+        body: JSON.stringify({ title: editTitle, reminderTimes: reminderTimesStr, isActive: editIsActive, daysOfWeek: daysOfWeekStr }),
       });
 
       if (response.ok) {
-        setHabits(habits.map(h => h.id === editModal.habitId ? { ...h, title: editTitle, reminderTimes: reminderTimesStr } : h));
+        setHabits(habits.map(h => h.id === editModal.habitId ? { ...h, title: editTitle, reminderTimes: reminderTimesStr, isActive: editIsActive, daysOfWeek: daysOfWeekStr } : h));
         setEditModal({ isOpen: false, habitId: "" });
         showToast("Hábito atualizado!");
-        router.refresh(); // Limpa cache do Next
+        router.refresh(); 
       }
     } catch (error) {
       console.error("Erro ao editar:", error);
@@ -312,6 +363,10 @@ export default function Home() {
   };
 
   const handleToggle = async (id: string) => {
+    const todayDayOfWeek = new Date().getDay().toString();
+    const habitToToggle = habits.find(h => h.id === id);
+    
+    // Pequena trava: Se tentar marcar num dia que não está na escala, pode avisar ou deixar (estou deixando livre para não frustrar)
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
@@ -335,7 +390,7 @@ export default function Home() {
     }));
     try {
       await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
-      router.refresh(); // Força a atualização do servidor para bater com o banco de dados
+      router.refresh(); 
     } catch (error) {
       fetchHabits(); 
     }
@@ -391,8 +446,8 @@ export default function Home() {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">Carregando...</div>;
   }
 
-  // --- TELA DE LOGIN ---
   if (status === "unauthenticated") {
+    // Tela de Login Mantida Exatamente Igual
     return (
       <div className="min-h-screen flex items-center justify-center bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 p-4 transition-colors">
         <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-md w-full border border-white/20 dark:border-gray-800/50 relative overflow-hidden">
@@ -447,20 +502,18 @@ export default function Home() {
   }
 
   // Estatísticas para o Dashboard
-  const totalHabits = habits.length;
-  const completedToday = habits.filter(h => h.logs.some(l => {
+  const activeHabits = habits.filter(h => h.isActive).length;
+  const completedToday = habits.filter(h => h.isActive && h.logs.some(l => {
     const d = new Date(l.date);
     const today = new Date();
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   })).length;
-  const completionRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
+  const completionRate = activeHabits > 0 ? Math.round((completedToday / activeHabits) * 100) : 0;
   const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateRealStreak(h.logs))) : 0;
 
-  // --- TELA DO PAINEL PRINCIPAL ---
   return (
     <main className="min-h-screen bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-8 transition-colors duration-300 relative overflow-x-hidden">
       
-      {/* Luzes difusas de fundo (Aura) */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
@@ -496,7 +549,6 @@ export default function Home() {
           </div>
         </header>
 
-        {/* --- DASHBOARD DE ESTATÍSTICAS (COCKPIT) --- */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl p-5 rounded-3xl shadow-sm border border-white/20 dark:border-gray-800/50 flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -522,41 +574,59 @@ export default function Home() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Hábitos Ativos</p>
-              <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{totalHabits}</p>
+              <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{activeHabits}</p>
             </div>
           </div>
         </div>
 
-        {/* INPUT DE CRIAR */}
+        {/* INPUT DE CRIAR ATUALIZADO */}
         <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl p-4 sm:p-6 rounded-3xl shadow-sm border border-white/20 dark:border-gray-800/50 mb-10">
-          <form onSubmit={handleAddHabit} className="flex flex-col sm:flex-row gap-3">
-            <input type="text" value={newHabit} onChange={(e) => setNewHabit(e.target.value)} placeholder="Ex: Ler 10 páginas 📖" className="flex-1 px-5 py-4 bg-gray-50/50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all placeholder:text-gray-400 font-medium" />
-            <div className="flex gap-2">
-              <div className="relative flex items-center bg-gray-50/50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-2xl px-4">
-                <Bell size={18} className="text-gray-400 mr-2" />
-                <input type="time" value={timeInput} onChange={(e) => setTimeInput(e.target.value)} className="bg-transparent border-none outline-none text-gray-700 dark:text-gray-200 py-4 cursor-pointer font-medium" />
-                <button onClick={handleAddTime} type="button" className="ml-3 text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 transition-colors">Add</button>
+          <form onSubmit={handleAddHabit} className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input type="text" value={newHabit} onChange={(e) => setNewHabit(e.target.value)} placeholder="Ex: Ler 10 páginas 📖" className="flex-1 px-5 py-4 bg-gray-50/50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all placeholder:text-gray-400 font-medium" />
+              <div className="flex gap-2">
+                <div className="relative flex items-center bg-gray-50/50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-2xl px-4">
+                  <Bell size={18} className="text-gray-400 mr-2" />
+                  <input type="time" value={timeInput} onChange={(e) => setTimeInput(e.target.value)} className="bg-transparent border-none outline-none text-gray-700 dark:text-gray-200 py-4 cursor-pointer font-medium" />
+                  <button onClick={handleAddTime} type="button" className="ml-3 text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 transition-colors">Add</button>
+                </div>
+                <button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2 active:scale-95">
+                  <Plus size={20} strokeWidth={3} />
+                  <span className="hidden sm:inline">Criar</span>
+                </button>
               </div>
-              <button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2 active:scale-95">
-                <Plus size={20} strokeWidth={3} />
-                <span className="hidden sm:inline">Criar</span>
-              </button>
+            </div>
+            
+            {/* SELETOR DE DIAS DA SEMANA */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Repetir nos dias:</span>
+              <div className="flex gap-1.5">
+                {WEEK_DAYS.map((day) => (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => toggleDaySelection(day.value)}
+                    className={`w-9 h-9 rounded-full text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${selectedDays.includes(day.value) ? "bg-blue-600 text-white shadow-blue-500/30" : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+              {selectedTimes.length > 0 && (
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedTimes.map(time => (
+                    <div key={time} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-1.5 rounded-full text-sm font-bold border border-blue-200 dark:border-blue-800/50 shadow-sm">
+                      <span>{time}</span>
+                      <button type="button" onClick={() => setSelectedTimes(selectedTimes.filter(t => t !== time))} className="hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5 transition-colors"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </form>
-          {selectedTimes.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-              <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center mr-2 font-medium">Notificar às:</span>
-              {selectedTimes.map(time => (
-                <div key={time} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-1.5 rounded-full text-sm font-bold border border-blue-200 dark:border-blue-800/50 shadow-sm">
-                  <span>{time}</span>
-                  <button type="button" onClick={() => setSelectedTimes(selectedTimes.filter(t => t !== time))} className="hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5 transition-colors"><X size={14} /></button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* LISTA DE HÁBITOS (GAMIFICADA) */}
+        {/* LISTA DE HÁBITOS */}
         <div className="space-y-5">
           {isLoading ? (
             <div className="animate-pulse flex flex-col gap-5">
@@ -576,29 +646,30 @@ export default function Home() {
                 return logDate.getDate() === today.getDate() && logDate.getMonth() === today.getMonth() && logDate.getFullYear() === today.getFullYear();
               });
 
-              // Usa a nossa função infalível para calcular a ofensiva
               const realStreak = calculateRealStreak(habit.logs);
-              
-              // Gera uma cor fixa baseada no ID do Hábito
               const habitGradient = COLOR_GRADIENTS[habit.id.charCodeAt(habit.id.length - 1) % COLOR_GRADIENTS.length];
-
-              // --- LOGICA DE GAMIFICAÇÃO (NÍVEIS) ---
-              let cardStyle = "border-white/20 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600";
+              
+              // Verifica se o hábito está pausado
+              const isPaused = !habit.isActive;
+              
+              let cardStyle = isPaused ? "border-gray-200 dark:border-gray-800 opacity-60 grayscale-[50%]" : "border-white/20 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600";
               let badgeStyle = "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
               let badgeIcon = "⚪";
 
-              if (realStreak >= 30) {
-                cardStyle = "border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.15)]";
-                badgeStyle = "bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400";
-                badgeIcon = "🔮";
-              } else if (realStreak >= 7) {
-                cardStyle = "border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.15)]";
-                badgeStyle = "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400";
-                badgeIcon = "🏆";
-              } else if (realStreak > 0) {
-                cardStyle = isCompleted ? "border-green-400/40 shadow-sm" : cardStyle;
-                badgeStyle = "bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400";
-                badgeIcon = "🔥";
+              if (!isPaused) {
+                if (realStreak >= 30) {
+                  cardStyle = "border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.15)]";
+                  badgeStyle = "bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400";
+                  badgeIcon = "🔮";
+                } else if (realStreak >= 7) {
+                  cardStyle = "border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.15)]";
+                  badgeStyle = "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400";
+                  badgeIcon = "🏆";
+                } else if (realStreak > 0) {
+                  cardStyle = isCompleted ? "border-green-400/40 shadow-sm" : cardStyle;
+                  badgeStyle = "bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400";
+                  badgeIcon = "🔥";
+                }
               }
 
               return (
@@ -607,37 +678,53 @@ export default function Home() {
                     
                     <div className="flex-1">
                       <div className="flex items-center gap-4 cursor-pointer" onClick={() => handleToggle(habit.id)}>
-                        <button className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${isCompleted ? `bg-gradient-to-tr ${habitGradient} text-white shadow-lg scale-110` : "bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
+                        <button disabled={isPaused} className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${isPaused ? "bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed" : isCompleted ? `bg-gradient-to-tr ${habitGradient} text-white shadow-lg scale-110` : "bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
                           {isCompleted ? <Check size={20} strokeWidth={3} /> : <Circle size={20} strokeWidth={2} />}
                         </button>
-                        <span className={`text-xl font-bold transition-all duration-300 ${isCompleted ? "text-gray-400 dark:text-gray-500 line-through decoration-2" : "text-gray-800 dark:text-gray-100"}`}>{habit.title}</span>
+                        <div>
+                          <span className={`text-xl font-bold transition-all duration-300 flex items-center gap-2 ${isCompleted || isPaused ? "text-gray-400 dark:text-gray-500 line-through decoration-2" : "text-gray-800 dark:text-gray-100"}`}>
+                            {habit.title}
+                            {isPaused && <span className="text-xs bg-gray-200 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded font-bold no-underline">PAUSADO</span>}
+                          </span>
+                        </div>
                       </div>
                       
-                      {habit.reminderTimes && (
-                        <div className="flex items-center gap-2 mt-3 ml-14">
-                          <Bell size={14} className="text-gray-400" />
-                          <div className="flex gap-1.5 flex-wrap">
-                            {habit.reminderTimes.split(",").map(time => (
-                              <span key={time} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-md font-bold border border-gray-200 dark:border-gray-700 shadow-sm">{time}</span>
-                            ))}
+                      <div className="flex items-center gap-4 mt-3 ml-14">
+                        {habit.reminderTimes && (
+                          <div className="flex items-center gap-2">
+                            <Bell size={14} className="text-gray-400" />
+                            <div className="flex gap-1.5 flex-wrap">
+                              {habit.reminderTimes.split(",").map(time => (
+                                <span key={time} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-md font-bold border border-gray-200 dark:border-gray-700 shadow-sm">{time}</span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                        {/* Mostra os dias ativos bem sutil */}
+                        {habit.daysOfWeek && habit.daysOfWeek !== "0,1,2,3,4,5,6" && (
+                           <div className="flex gap-1 text-xs font-bold text-gray-400 dark:text-gray-500">
+                             {habit.daysOfWeek.split(",").map(d => WEEK_DAYS.find(wd => wd.value === d)?.label).join(", ")}
+                           </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                      {/* Badge Gamificada */}
                       <div className={`flex items-center gap-2 font-black px-4 py-2 rounded-xl text-sm mr-2 shadow-sm ${badgeStyle}`}>
                         <span className="text-base">{badgeIcon}</span>
                         <span>{realStreak} {realStreak === 1 ? 'dia' : 'dias'}</span>
                       </div>
                       
+                      {/* Botão de Play/Pause rápido */}
+                      <button onClick={() => toggleHabitActiveStatus(habit)} title={isPaused ? "Retomar Hábito" : "Pausar Hábito"} className="text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md">
+                        {isPaused ? <PlayCircle size={18} /> : <PauseCircle size={18} />}
+                      </button>
                       <button onClick={() => openEdit(habit)} className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md"><Edit2 size={18} /></button>
                       <button onClick={() => setDeleteModal({ isOpen: true, habitId: habit.id, title: habit.title })} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-red-50 dark:bg-red-900/10 rounded-xl hover:shadow-md"><Trash2 size={18} /></button>
                     </div>
                   </div>
                   
-                  <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-800/80">
+                  <div className={`mt-5 pt-5 border-t border-gray-100 dark:border-gray-800/80 transition-opacity ${isPaused ? 'opacity-30' : ''}`}>
                     {renderHeatmap(habit.logs, habitGradient)}
                   </div>
                 </div>
@@ -646,25 +733,18 @@ export default function Home() {
           )}
         </div>
         
-        {/* --- RODAPÉ PERSONALIZADO --- */}
         <footer className="mt-12 pt-8 pb-4 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200/50 dark:border-gray-800/50">
           <p>&copy; {new Date().getFullYear()} Habit Tracker. Todos os direitos reservados.</p>
           <p className="mt-1">
             Desenvolvido por{" "}
-            <a 
-              href="https://www.linkedin.com/in/richard-lapuente/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
-            >
+            <a href="https://www.linkedin.com/in/richard-lapuente/" target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors">
               Richard Lapuente
             </a>
           </p>
         </footer>
-
       </div>
 
-      {/* --- MODAL DO ALARME / NOTIFICAÇÃO (DESPERTADOR FRONTEND) --- */}
+      {/* --- MODAL DO ALARME / NOTIFICAÇÃO --- */}
       {activeNotification && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center pt-24 p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white dark:bg-gray-900 rounded-[2rem] shadow-[0_0_50px_rgba(59,130,246,0.4)] border border-blue-500/30 p-8 max-w-sm w-full animate-in slide-in-from-top-10">
@@ -704,6 +784,23 @@ export default function Home() {
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nome do Hábito</label>
                 <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white font-medium" />
               </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Repetir nos dias</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {WEEK_DAYS.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDaySelection(day.value, true)}
+                      className={`w-9 h-9 rounded-full text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${editSelectedDays.includes(day.value) ? "bg-blue-600 text-white shadow-blue-500/30" : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Horários de Alerta</label>
                 <div className="flex gap-2">

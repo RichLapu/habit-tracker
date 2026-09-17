@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// Rota para BUSCAR os hábitos
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -25,7 +24,6 @@ export async function GET() {
   }
 }
 
-// Rota para CRIAR um hábito
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -33,8 +31,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Agora preparamos para receber o título E os horários
-    const { title, reminderTimes } = await request.json();
+    // Agora recebemos também os dias da semana!
+    const { title, reminderTimes, daysOfWeek } = await request.json();
 
     if (!title) {
       return NextResponse.json({ error: "O título é obrigatório" }, { status: 400 });
@@ -44,14 +42,14 @@ export async function POST(request: Request) {
       data: {
         title,
         userId: session.user.id,
-        // Se vier vazio do frontend, o Prisma salva como nulo sem reclamar
-        reminderTimes: reminderTimes || null, 
+        reminderTimes: reminderTimes || null,
+        daysOfWeek: daysOfWeek || "0,1,2,3,4,5,6", // Se não mandar, ativa todos os dias
+        isActive: true,
       },
     });
 
     return NextResponse.json(newHabit, { status: 201 });
   } catch (error) {
-    // Esta linha vai dedurar o Prisma no seu terminal do VS Code!
     console.error("=== ERRO AO CRIAR HÁBITO ===", error);
     return NextResponse.json({ error: "Erro interno ao criar hábito" }, { status: 500 });
   }

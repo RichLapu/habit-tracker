@@ -3,26 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// O Next.js agora exige que params seja tipado como uma Promise
 type RouteParams = { params: Promise<{ id: string }> };
 
-// Rota para ATUALIZAR (Editar) o hábito
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-    // 1. Resolvemos a Promise do params primeiro
     const resolvedParams = await params;
     const habitId = resolvedParams.id;
 
-    const { title, reminderTimes } = await request.json();
+    // Recebendo os novos parâmetros
+    const { title, reminderTimes, isActive, daysOfWeek } = await request.json();
 
     const updatedHabit = await prisma.habit.update({
       where: { id: habitId, userId: session.user.id },
       data: { 
         title, 
-        reminderTimes: reminderTimes || null 
+        reminderTimes: reminderTimes || null,
+        isActive: isActive, // Atualiza o status de Play/Pause
+        daysOfWeek: daysOfWeek
       },
     });
 
@@ -33,13 +33,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
   }
 }
 
-// Rota para DELETAR o hábito
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-    // 1. Resolvemos a Promise do params primeiro
     const resolvedParams = await params;
     const habitId = resolvedParams.id;
 

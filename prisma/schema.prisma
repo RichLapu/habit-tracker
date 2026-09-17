@@ -76,6 +76,10 @@ model Habit {
 
   // NOVO: Guarda múltiplos horários separados por vírgula (ex: "10:00,13:00,16:00")
   reminderTimes String?    
+
+  // --- NOVOS CAMPOS ADICIONADOS ---
+  isActive      Boolean    @default(true)
+  daysOfWeek    String?    @default("0,1,2,3,4,5,6") // 0=Dom, 1=Seg, 2=Ter... 6=Sab
 }
 
 model HabitLog {
