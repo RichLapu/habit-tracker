@@ -238,7 +238,10 @@ export default function Home() {
   const fetchHabits = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/habits", { cache: "no-store" });
+      // O truque do timestamp obriga a limpar o cache do navegador e da Vercel!
+      const response = await fetch(`/api/habits?t=${new Date().getTime()}`, { 
+        cache: 'no-store' 
+      });
       if (response.ok) setHabits(await response.json());
     } catch (error) {
       console.error("Erro ao carregar:", error);
@@ -363,10 +366,7 @@ export default function Home() {
   };
 
   const handleToggle = async (id: string) => {
-    const todayDayOfWeek = new Date().getDay().toString();
-    const habitToToggle = habits.find(h => h.id === id);
-    
-    // Pequena trava: Se tentar marcar num dia que não está na escala, pode avisar ou deixar (estou deixando livre para não frustrar)
+    // 1. Otimização visual imediata (Ilusão pro usuário não esperar)
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
@@ -388,11 +388,17 @@ export default function Home() {
       }
       return habit;
     }));
+
+    // 2. Ação real no servidor
     try {
-      await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
-      router.refresh(); 
-    } catch (error) {
+      const response = await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
+      if (!response.ok) throw new Error("Falha ao salvar no banco");
+      
+      // 3. Força a atualização REAL lendo da AWS de novo
       fetchHabits(); 
+    } catch (error) {
+      console.error("Erro no toggle:", error);
+      fetchHabits(); // Se der erro, desfaz a ilusão e busca a verdade
     }
   };
 
