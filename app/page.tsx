@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame, PauseCircle, PlayCircle } from "lucide-react";
 
 type Habit = {
   id: string;
