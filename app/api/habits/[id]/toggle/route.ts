@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// Pega o dia exato no Brasil (ex: "2026-09-17")
 function getBrazilDateString(date: Date) {
   const brtTime = new Date(date.getTime() - 3 * 60 * 60 * 1000);
   return brtTime.toISOString().split('T')[0]; 
@@ -27,12 +26,10 @@ export async function POST(request: Request, context: any) {
 
     const now = new Date();
     const todayStr = getBrazilDateString(now); 
-
-    // O SEGREDO: Criamos a data cravada na meia-noite para não quebrar a regra de "1 por dia" da AWS
     const normalizedDate = new Date(`${todayStr}T00:00:00.000Z`);
 
     const todayLog = habit.logs.find(log => {
-      // Comparamos a data ignorando horas e segundos
+      // CORREÇÃO: Como já salvamos "limpo" (00:00:00Z), basta fatiar o texto, sem subtrair horas de novo!
       const logDateStr = new Date(log.date).toISOString().split('T')[0];
       return logDateStr === todayStr;
     });
@@ -43,7 +40,6 @@ export async function POST(request: Request, context: any) {
       });
       return NextResponse.json({ message: "Desmarcado" });
     } else {
-      // Mandamos a data limpa para evitar o "Unique constraint failed"
       await prisma.habitLog.create({
         data: { habitId: habit.id, date: normalizedDate },
       });

@@ -369,23 +369,25 @@ export default function Home() {
   const handleToggle = async (id: string) => {
     const previousHabits = [...habits]; 
     
-    // Deixa a bolinha azul ou cinza instantaneamente!
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
         const isCompleted = habit.logs.some(log => {
+          // Vacina aplicada na checagem visual
           const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
-          const today = new Date();
           return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
         });
         
         let newLogs = [];
         if (!isCompleted) {
-          newLogs = [{ date: new Date().toISOString() }, ...habit.logs];
+          // Cria o log visual idêntico ao do banco (00:00:00.000Z)
+          const todayStr = new Date(today.getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
+          newLogs = [{ date: `${todayStr}T00:00:00.000Z` }, ...habit.logs];
         } else {
+          // Vacina aplicada na hora de apagar o log visual
           newLogs = habit.logs.filter(log => {
-              const logDate = new Date(log.date);
-              return !(logDate.getDate() === today.getDate() && logDate.getMonth() === today.getMonth() && logDate.getFullYear() === today.getFullYear());
+              const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+              return !(day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear());
           });
         }
         return { ...habit, logs: newLogs };
@@ -393,14 +395,12 @@ export default function Home() {
       return habit;
     }));
     
-    // Salva na AWS em silêncio
     try {
       const response = await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
       if (!response.ok) throw new Error("Falha no servidor");
-      // Não fazemos fetchHabits() para não piscar a lista!
     } catch (error) {
       console.error(error);
-      setHabits(previousHabits); // Desfaz a bolinha azul se a AWS falhar
+      setHabits(previousHabits); 
       showToast("Erro ao salvar o check.");
     }
   };
@@ -511,9 +511,9 @@ export default function Home() {
 
   const activeHabits = habits.filter(h => h.isActive).length;
   const completedToday = habits.filter(h => h.isActive && h.logs.some(l => {
-    const d = new Date(l.date);
+    const [year, month, day] = l.date.split('T')[0].split('-').map(Number);
     const today = new Date();
-    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
   })).length;
   const completionRate = activeHabits > 0 ? Math.round((completedToday / activeHabits) * 100) : 0;
   const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateRealStreak(h.logs))) : 0;
