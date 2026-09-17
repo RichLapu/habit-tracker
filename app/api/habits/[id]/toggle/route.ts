@@ -9,18 +9,16 @@ function getBrazilDateString(date: Date) {
   return brtTime.toISOString().split('T')[0]; 
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request, context: any) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-    const resolvedParams = await params;
-    const habitId = resolvedParams.id;
+    // TÁTICA BLINDADA: Arrancamos o ID direto do link (URL) em vez de confiar no Next.js
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/');
+    const habitId = parts[parts.length - 2]; // O ID sempre é o penúltimo item na URL
 
-    // A MUDANÇA CRÍTICA: findFirst resolve o erro 500 do Prisma!
     const habit = await prisma.habit.findFirst({
       where: { 
         id: habitId, 
@@ -29,7 +27,7 @@ export async function POST(
       include: { logs: true },
     });
 
-    if (!habit) return NextResponse.json({ error: "Hábito não encontrado" }, { status: 404 });
+    if (!habit) return NextResponse.json({ error: "Hábito não encontrado", idBuscado: habitId }, { status: 404 });
 
     const now = new Date();
     const todayStr = getBrazilDateString(now);
@@ -39,7 +37,6 @@ export async function POST(
     });
 
     if (todayLog) {
-      // Usando deleteMany para maior segurança com o Prisma
       await prisma.habitLog.deleteMany({
         where: { id: todayLog.id },
       });
@@ -52,7 +49,7 @@ export async function POST(
     }
   } catch (error) {
     console.error("ERRO AO TOGGLE:", error);
-    // Se falhar, agora ele vai te dizer EXATAMENTE o motivo no painel Network
+    // Agora ele devolve o erro real para podermos ler!
     return NextResponse.json(
       { error: "Erro interno", details: error instanceof Error ? error.message : String(error) }, 
       { status: 500 }
