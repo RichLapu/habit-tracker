@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+// Voltamos para a sua tipagem oficial que funciona perfeitamente!
 type RouteParams = { params: Promise<{ id: string }> };
 
-// A matemática pura que ignora a Vercel e força o horário do Brasil (UTC-3)
 function getBrazilDateString(date: Date) {
   const brtTime = new Date(date.getTime() - 3 * 60 * 60 * 1000);
   return brtTime.toISOString().split('T')[0]; 

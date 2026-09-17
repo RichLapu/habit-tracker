@@ -306,17 +306,23 @@ export default function Home() {
 
   const toggleHabitActiveStatus = async (habit: Habit) => {
     const newStatus = !habit.isActive;
+    const previousHabits = [...habits]; // Guarda o estado para reverter se der erro
+    
+    // Atualiza a tela NA HORA, sem piscar e sem recarregar a lista
     setHabits(habits.map(h => h.id === habit.id ? { ...h, isActive: newStatus } : h));
+    
     try {
-      await fetch(`/api/habits/${habit.id}`, {
+      const res = await fetch(`/api/habits/${habit.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: habit.title, reminderTimes: habit.reminderTimes, isActive: newStatus, daysOfWeek: habit.daysOfWeek }),
       });
+      if (!res.ok) throw new Error("Erro na API");
       showToast(newStatus ? "Hábito retomado!" : "Hábito pausado!");
-      fetchHabits();
+      // Não fazemos mais fetchHabits() aqui! A tela já está certa.
     } catch (error) {
-      fetchHabits();
+      setHabits(previousHabits); // Desfaz a ação se a internet cair
+      showToast("Erro ao pausar/retomar.");
     }
   };
 
@@ -359,7 +365,9 @@ export default function Home() {
   };
 
   const handleToggle = async (id: string) => {
-    // Ilusão Visual (Interface Otimista)
+    const previousHabits = [...habits]; 
+    
+    // Deixa a bolinha azul ou cinza instantaneamente!
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
@@ -382,15 +390,15 @@ export default function Home() {
       return habit;
     }));
     
-    // Ação Real no Banco de Dados
+    // Salva na AWS em silêncio
     try {
       const response = await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
       if (!response.ok) throw new Error("Falha no servidor");
-      // Busca os dados da AWS garantindo que o fuso horário bateu
-      fetchHabits(); 
+      // Não fazemos fetchHabits() para não piscar a lista!
     } catch (error) {
       console.error(error);
-      fetchHabits(); 
+      setHabits(previousHabits); // Desfaz a bolinha azul se a AWS falhar
+      showToast("Erro ao salvar o check.");
     }
   };
 
