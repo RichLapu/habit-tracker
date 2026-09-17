@@ -238,7 +238,7 @@ export default function Home() {
   const fetchHabits = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/habits");
+      const response = await fetch("/api/habits", { cache: "no-store" });
       if (response.ok) setHabits(await response.json());
     } catch (error) {
       console.error("Erro ao carregar:", error);
