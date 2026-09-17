@@ -366,7 +366,7 @@ export default function Home() {
   };
 
   const handleToggle = async (id: string) => {
-    // 1. Otimização visual imediata (Ilusão pro usuário não esperar)
+    // 1. Atualização Otimista (Pinta a bolinha na tela instantaneamente)
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
@@ -389,16 +389,13 @@ export default function Home() {
       return habit;
     }));
 
-    // 2. Ação real no servidor
+    // 2. Salva na AWS silenciosamente em segundo plano
     try {
       const response = await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
-      if (!response.ok) throw new Error("Falha ao salvar no banco");
-      
-      // 3. Força a atualização REAL lendo da AWS de novo
-      fetchHabits(); 
+      if (!response.ok) throw new Error("Erro no servidor");
     } catch (error) {
-      console.error("Erro no toggle:", error);
-      fetchHabits(); // Se der erro, desfaz a ilusão e busca a verdade
+      // SÓ busca da AWS de novo se der ERRO na internet, para corrigir a tela
+      fetchHabits(); 
     }
   };
 

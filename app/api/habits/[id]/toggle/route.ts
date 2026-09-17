@@ -5,12 +5,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-// A MÁGICA MATEMÁTICA: Força o horário do Brasil (UTC-3) independente de onde o servidor esteja
-function getBrazilDateString(date: Date) {
-  const brtTime = new Date(date.getTime() - 3 * 60 * 60 * 1000);
-  return brtTime.toISOString().split('T')[0]; // Retorna sempre YYYY-MM-DD certinho
-}
-
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
@@ -27,24 +21,27 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (!habit) return NextResponse.json({ error: "Hábito não encontrado" }, { status: 404 });
 
     const now = new Date();
-    const todayStr = getBrazilDateString(now); // Ex: "2026-09-17"
+    
+    // O seu código nativo perfeito para o Fuso do Brasil
+    const formatter = new Intl.DateTimeFormat('pt-BR', { 
+      timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' 
+    });
+    const todayStr = formatter.format(now);
 
-    // Procura se já existe um check HOJE no fuso do Brasil
     const todayLog = habit.logs.find(log => {
-      const logDateStr = getBrazilDateString(new Date(log.date));
-      return logDateStr === todayStr;
+      return formatter.format(new Date(log.date)) === todayStr;
     });
 
     if (todayLog) {
-      await prisma.habitLog.deleteMany({
+      await prisma.habitLog.delete({
         where: { id: todayLog.id },
       });
-      return NextResponse.json({ message: "Desmarcado com sucesso" });
+      return NextResponse.json({ message: "Desmarcado" });
     } else {
       await prisma.habitLog.create({
         data: { habitId: habit.id, date: now },
       });
-      return NextResponse.json({ message: "Marcado com sucesso" });
+      return NextResponse.json({ message: "Marcado" });
     }
 
   } catch (error) {
