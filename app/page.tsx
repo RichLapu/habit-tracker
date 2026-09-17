@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame, PauseCircle, PlayCircle } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle } from "lucide-react";
 
 type Habit = {
   id: string;
@@ -145,7 +145,7 @@ export default function Home() {
           });
           await subscription.unsubscribe();
           setIsSubscribed(false);
-          showToast("Notificações desativadas neste aparelho.");
+          showToast("Notificações desativadas.");
         }
       } catch (error) {
         console.error("Erro ao desativar:", error);
@@ -181,7 +181,6 @@ export default function Home() {
     return streak;
   };
 
-  // MOTOR DE NOTIFICAÇÕES (Agora respeita dias ativos e inativos)
   useEffect(() => {
     if (habits.length === 0 || status !== "authenticated") return;
     const now = new Date();
@@ -192,7 +191,6 @@ export default function Home() {
     const todayDayOfWeek = now.getDay().toString();
 
     habits.forEach(habit => {
-      // Ignora se estiver pausado ou não for o dia configurado
       if (!habit.isActive) return;
       if (habit.daysOfWeek && !habit.daysOfWeek.split(',').includes(todayDayOfWeek)) return;
 
@@ -212,7 +210,7 @@ export default function Home() {
            setActiveNotification({ habitId: habit.id, title: habit.title, time: currentHourMin, key: notifKey });
            setNotifiedToday(prev => [...prev, notifKey]);
            if (nativeNotifGranted) {
-             new Notification('⏰ Lembrete de Hábito', { body: `Hora de: ${habit.title}`, icon: 'https://www.svgrepo.com/show/474347/calendar.svg' });
+             new Notification('⏰ Lembrete', { body: `Hora de: ${habit.title}`, icon: 'https://www.svgrepo.com/show/474347/calendar.svg' });
            }
         }
       }
@@ -235,13 +233,12 @@ export default function Home() {
     }
   };
 
+  // 🔴 O DESTRUIDOR DE CACHE (A Tática do Timestamp) 🔴
   const fetchHabits = async () => {
     setIsLoading(true);
     try {
-      // O truque do timestamp obriga a limpar o cache do navegador e da Vercel!
-      const response = await fetch(`/api/habits?t=${new Date().getTime()}`, { 
-        cache: 'no-store' 
-      });
+      const timestamp = new Date().getTime(); // Gera um número único
+      const response = await fetch(`/api/habits?t=${timestamp}`, { cache: 'no-store' });
       if (response.ok) setHabits(await response.json());
     } catch (error) {
       console.error("Erro ao carregar:", error);
@@ -283,13 +280,11 @@ export default function Home() {
         }),
       });
       if (response.ok) {
-        const addedHabit = await response.json();
-        setHabits([{ ...addedHabit, logs: [] }, ...habits]);
         setNewHabit("");
         setSelectedTimes([]);
-        setSelectedDays(["0", "1", "2", "3", "4", "5", "6"]); // Reseta para todos os dias
+        setSelectedDays(["0", "1", "2", "3", "4", "5", "6"]);
         showToast("Hábito criado com sucesso!");
-        router.refresh(); 
+        fetchHabits(); 
       }
     } catch (error) {
       console.error("Erro ao criar:", error);
@@ -300,10 +295,9 @@ export default function Home() {
     try {
       const response = await fetch(`/api/habits/${deleteModal.habitId}`, { method: "DELETE" });
       if (response.ok) {
-        setHabits(habits.filter((h) => h.id !== deleteModal.habitId));
         setDeleteModal({ isOpen: false, habitId: "", title: "" });
         showToast("Hábito removido!");
-        router.refresh(); 
+        fetchHabits(); 
       }
     } catch (error) {
       console.error("Erro ao deletar:", error);
@@ -320,7 +314,7 @@ export default function Home() {
         body: JSON.stringify({ title: habit.title, reminderTimes: habit.reminderTimes, isActive: newStatus, daysOfWeek: habit.daysOfWeek }),
       });
       showToast(newStatus ? "Hábito retomado!" : "Hábito pausado!");
-      router.refresh();
+      fetchHabits();
     } catch (error) {
       fetchHabits();
     }
@@ -355,10 +349,9 @@ export default function Home() {
       });
 
       if (response.ok) {
-        setHabits(habits.map(h => h.id === editModal.habitId ? { ...h, title: editTitle, reminderTimes: reminderTimesStr, isActive: editIsActive, daysOfWeek: daysOfWeekStr } : h));
         setEditModal({ isOpen: false, habitId: "" });
         showToast("Hábito atualizado!");
-        router.refresh(); 
+        fetchHabits(); 
       }
     } catch (error) {
       console.error("Erro ao editar:", error);
@@ -366,7 +359,7 @@ export default function Home() {
   };
 
   const handleToggle = async (id: string) => {
-    // 1. Atualização Otimista (Pinta a bolinha na tela instantaneamente)
+    // Ilusão Visual (Interface Otimista)
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
@@ -388,13 +381,15 @@ export default function Home() {
       }
       return habit;
     }));
-
-    // 2. Salva na AWS silenciosamente em segundo plano
+    
+    // Ação Real no Banco de Dados
     try {
       const response = await fetch(`/api/habits/${id}/toggle`, { method: "POST" });
-      if (!response.ok) throw new Error("Erro no servidor");
+      if (!response.ok) throw new Error("Falha no servidor");
+      // Busca os dados da AWS garantindo que o fuso horário bateu
+      fetchHabits(); 
     } catch (error) {
-      // SÓ busca da AWS de novo se der ERRO na internet, para corrigir a tela
+      console.error(error);
       fetchHabits(); 
     }
   };
@@ -450,7 +445,6 @@ export default function Home() {
   }
 
   if (status === "unauthenticated") {
-    // Tela de Login Mantida Exatamente Igual
     return (
       <div className="min-h-screen flex items-center justify-center bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 p-4 transition-colors">
         <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-md w-full border border-white/20 dark:border-gray-800/50 relative overflow-hidden">
@@ -504,7 +498,6 @@ export default function Home() {
     );
   }
 
-  // Estatísticas para o Dashboard
   const activeHabits = habits.filter(h => h.isActive).length;
   const completedToday = habits.filter(h => h.isActive && h.logs.some(l => {
     const d = new Date(l.date);
@@ -582,7 +575,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* INPUT DE CRIAR ATUALIZADO */}
         <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl p-4 sm:p-6 rounded-3xl shadow-sm border border-white/20 dark:border-gray-800/50 mb-10">
           <form onSubmit={handleAddHabit} className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -600,7 +592,6 @@ export default function Home() {
               </div>
             </div>
             
-            {/* SELETOR DE DIAS DA SEMANA */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Repetir nos dias:</span>
               <div className="flex gap-1.5">
@@ -629,7 +620,6 @@ export default function Home() {
           </form>
         </div>
 
-        {/* LISTA DE HÁBITOS */}
         <div className="space-y-5">
           {isLoading ? (
             <div className="animate-pulse flex flex-col gap-5">
@@ -652,7 +642,6 @@ export default function Home() {
               const realStreak = calculateRealStreak(habit.logs);
               const habitGradient = COLOR_GRADIENTS[habit.id.charCodeAt(habit.id.length - 1) % COLOR_GRADIENTS.length];
               
-              // Verifica se o hábito está pausado
               const isPaused = !habit.isActive;
               
               let cardStyle = isPaused ? "border-gray-200 dark:border-gray-800 opacity-60 grayscale-[50%]" : "border-white/20 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600";
@@ -703,7 +692,6 @@ export default function Home() {
                             </div>
                           </div>
                         )}
-                        {/* Mostra os dias ativos bem sutil */}
                         {habit.daysOfWeek && habit.daysOfWeek !== "0,1,2,3,4,5,6" && (
                            <div className="flex gap-1 text-xs font-bold text-gray-400 dark:text-gray-500">
                              {habit.daysOfWeek.split(",").map(d => WEEK_DAYS.find(wd => wd.value === d)?.label).join(", ")}
@@ -718,7 +706,6 @@ export default function Home() {
                         <span>{realStreak} {realStreak === 1 ? 'dia' : 'dias'}</span>
                       </div>
                       
-                      {/* Botão de Play/Pause rápido */}
                       <button onClick={() => toggleHabitActiveStatus(habit)} title={isPaused ? "Retomar Hábito" : "Pausar Hábito"} className="text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md">
                         {isPaused ? <PlayCircle size={18} /> : <PauseCircle size={18} />}
                       </button>
@@ -747,7 +734,6 @@ export default function Home() {
         </footer>
       </div>
 
-      {/* --- MODAL DO ALARME / NOTIFICAÇÃO --- */}
       {activeNotification && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center pt-24 p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white dark:bg-gray-900 rounded-[2rem] shadow-[0_0_50px_rgba(59,130,246,0.4)] border border-blue-500/30 p-8 max-w-sm w-full animate-in slide-in-from-top-10">
@@ -774,7 +760,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- MODAL DE EDIÇÃO --- */}
       {editModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 p-8 max-w-md w-full">
@@ -833,7 +818,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- MODAL DE EXCLUSÃO --- */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 p-8 max-w-sm w-full">
@@ -848,7 +832,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- TOAST FLUTUANTE --- */}
       <div className={`fixed bottom-6 right-6 z-[70] transition-all duration-500 transform ${toast.show ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none"}`}>
         <div className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-4 rounded-2xl shadow-2xl font-bold flex items-center gap-3">
           <div className="bg-green-500 text-white rounded-full p-1"><Check size={16} strokeWidth={3} /></div>
