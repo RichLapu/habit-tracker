@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, CheckCircle2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Award, Zap, Flame, PauseCircle, PlayCircle } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star } from "lucide-react";
 
 type Habit = {
   id: string;
@@ -38,9 +38,12 @@ const WEEK_DAYS = [
 export default function Home() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
-  const router = useRouter(); 
   
   const [habits, setHabits] = useState<Habit[]>([]);
+  // --- NOVOS ESTADOS GAMIFICATION ---
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
+
   const [newHabit, setNewHabit] = useState("");
   const [timeInput, setTimeInput] = useState("");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
@@ -93,8 +96,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (status === "authenticated") fetchHabits();
+    if (status === "authenticated") {
+      fetchHabits();
+      fetchUserStats(); // Busca o XP e Level ao carregar a página
+    }
   }, [status]);
+
+  // --- NOVA FUNÇÃO: Busca XP e Level ---
+  const fetchUserStats = async () => {
+    try {
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/user?t=${timestamp}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        setXp(data.xp);
+        setLevel(data.level);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar stats do usuário:", error);
+    }
+  };
 
   const requestNotificationPermission = async () => {
     if ("Notification" in window && "serviceWorker" in navigator) {
@@ -123,7 +144,7 @@ export default function Home() {
           });
 
           setIsSubscribed(true);
-          showToast("Notificações em Segundo Plano ativadas!");
+          showToast("Notificações ativadas!");
         } catch (error) {
           console.error("Erro ao assinar Push:", error);
         }
@@ -157,7 +178,6 @@ export default function Home() {
     if (!logs || logs.length === 0) return 0;
     
     const normalizedDates = [...new Set(logs.map(l => {
-      // A MÁGICA: Cortamos apenas o Ano, Mês e Dia do texto, ignorando o fuso!
       const [year, month, day] = l.date.split('T')[0].split('-').map(Number);
       return new Date(year, month - 1, day).getTime();
     }))].sort((a,b) => b - a);
@@ -197,8 +217,7 @@ export default function Home() {
 
       const isCompleted = habit.logs.some(log => {
         const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
-        const today = new Date();
-        return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
+        return day === now.getDate() && (month - 1) === now.getMonth() && year === now.getFullYear();
       });
       if (isCompleted) return;
 
@@ -212,7 +231,7 @@ export default function Home() {
            setActiveNotification({ habitId: habit.id, title: habit.title, time: currentHourMin, key: notifKey });
            setNotifiedToday(prev => [...prev, notifKey]);
            if (nativeNotifGranted) {
-             new Notification('⏰ Lembrete', { body: `Hora de: ${habit.title}`, icon: 'https://www.svgrepo.com/show/474347/calendar.svg' });
+             new Notification('⏰ Lembrete', { body: `Hora de: ${habit.title}` });
            }
         }
       }
@@ -235,11 +254,10 @@ export default function Home() {
     }
   };
 
-  // 🔴 O DESTRUIDOR DE CACHE (A Tática do Timestamp) 🔴
   const fetchHabits = async () => {
     setIsLoading(true);
     try {
-      const timestamp = new Date().getTime(); // Gera um número único
+      const timestamp = new Date().getTime();
       const response = await fetch(`/api/habits?t=${timestamp}`, { cache: 'no-store' });
       if (response.ok) setHabits(await response.json());
     } catch (error) {
@@ -308,9 +326,8 @@ export default function Home() {
 
   const toggleHabitActiveStatus = async (habit: Habit) => {
     const newStatus = !habit.isActive;
-    const previousHabits = [...habits]; // Guarda o estado para reverter se der erro
+    const previousHabits = [...habits]; 
     
-    // Atualiza a tela NA HORA, sem piscar e sem recarregar a lista
     setHabits(habits.map(h => h.id === habit.id ? { ...h, isActive: newStatus } : h));
     
     try {
@@ -321,9 +338,8 @@ export default function Home() {
       });
       if (!res.ok) throw new Error("Erro na API");
       showToast(newStatus ? "Hábito retomado!" : "Hábito pausado!");
-      // Não fazemos mais fetchHabits() aqui! A tela já está certa.
     } catch (error) {
-      setHabits(previousHabits); // Desfaz a ação se a internet cair
+      setHabits(previousHabits); 
       showToast("Erro ao pausar/retomar.");
     }
   };
@@ -368,26 +384,40 @@ export default function Home() {
 
   const handleToggle = async (id: string) => {
     const previousHabits = [...habits]; 
+    const previousXp = xp;
+    const previousLevel = level;
     
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
         const isCompleted = habit.logs.some(log => {
-          // Vacina aplicada na checagem visual
           const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
           return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
         });
         
         let newLogs = [];
         if (!isCompleted) {
-          // Cria o log visual idêntico ao do banco (00:00:00.000Z)
           const todayStr = new Date(today.getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
           newLogs = [{ date: `${todayStr}T00:00:00.000Z` }, ...habit.logs];
+          
+          // --- OTIMIZAÇÃO DE GAMIFICAÇÃO: Soma o XP na hora! ---
+          setXp(prev => {
+            const next = prev + 10;
+            setLevel(Math.floor(next / 100) + 1);
+            return next;
+          });
+
         } else {
-          // Vacina aplicada na hora de apagar o log visual
           newLogs = habit.logs.filter(log => {
               const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
               return !(day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear());
+          });
+
+          // --- OTIMIZAÇÃO DE GAMIFICAÇÃO: Remove o XP na hora se desmarcar! ---
+          setXp(prev => {
+            const next = Math.max(0, prev - 10);
+            setLevel(Math.floor(next / 100) + 1);
+            return next;
           });
         }
         return { ...habit, logs: newLogs };
@@ -400,7 +430,10 @@ export default function Home() {
       if (!response.ok) throw new Error("Falha no servidor");
     } catch (error) {
       console.error(error);
+      // Se a internet cair, desfaz a bolinha e o XP
       setHabits(previousHabits); 
+      setXp(previousXp);
+      setLevel(previousLevel);
       showToast("Erro ao salvar o check.");
     }
   };
@@ -430,7 +463,6 @@ export default function Home() {
       days.push(d.getTime());
     }
     const logDates = logs.map(log => {
-      // A mesma mágica: pegamos o texto puro da data
       const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
       return new Date(year, month - 1, day).getTime();
     });
@@ -518,6 +550,9 @@ export default function Home() {
   const completionRate = activeHabits > 0 ? Math.round((completedToday / activeHabits) * 100) : 0;
   const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateRealStreak(h.logs))) : 0;
 
+  // Calculo visual da barra de progresso (0% a 100%)
+  const xpProgress = xp % 100;
+
   return (
     <main className="min-h-screen bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-8 transition-colors duration-300 relative overflow-x-hidden">
       
@@ -526,17 +561,47 @@ export default function Home() {
 
       <div className="max-w-4xl mx-auto">
         <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-white/20 dark:border-gray-800/50">
-          <div>
-            <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight">
-              Olá, {session?.user?.name || session?.user?.email?.split('@')[0]}
-            </h1>
-            <div className="flex items-center gap-2 mt-1 text-gray-500 dark:text-gray-400 font-medium capitalize text-sm">
-              <span>{new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(currentTime)}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-700"></span>
-              <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+          <div className="flex-1 w-full">
+            <div className="flex justify-between w-full">
+              <div>
+                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight">
+                  Olá, {session?.user?.name || session?.user?.email?.split('@')[0]}
+                </h1>
+                <div className="flex items-center gap-2 mt-1 text-gray-500 dark:text-gray-400 font-medium capitalize text-sm">
+                  <span>{new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(currentTime)}</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-700"></span>
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* --- NOVA BARRA DE XP NO HEADER --- */}
+            <div className="mt-5 w-full bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800/80 shadow-inner">
+              <div className="flex justify-between items-center mb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400 p-1.5 rounded-lg shadow-sm">
+                    <Star size={16} fill="currentColor" />
+                  </div>
+                  <span className="font-black text-gray-800 dark:text-gray-100 tracking-wide uppercase text-sm">
+                    Nível {level}
+                  </span>
+                </div>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
+                  {xpProgress} / 100 XP
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-3.5 overflow-hidden shadow-inner">
+                <div 
+                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden" 
+                  style={{ width: `${xpProgress}%` }}
+                >
+                  <div className="absolute top-0 right-0 bottom-0 left-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]"></div>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-3 self-end md:self-auto mt-4 md:mt-0">
             {!isSubscribed ? (
               <button onClick={requestNotificationPermission} className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm" title="Ativar Notificações">
                 <Bell size={20} />
@@ -647,7 +712,6 @@ export default function Home() {
               const today = new Date();
               const isCompleted = habit.logs.some(log => {
                 const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
-                const today = new Date();
                 return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
               });
 
