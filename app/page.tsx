@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,46 @@ const WEEK_DAYS = [
   { value: "5", label: "S" },
   { value: "6", label: "S" },
 ];
+
+// --- NOVO COMPONENTE: Heatmap com Scroll Automático ---
+const Heatmap = ({ logs, themeGradient }: { logs: { date: string }[], themeGradient: string }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      // Força a barra de rolagem a ir totalmente para a direita
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, [logs]);
+
+  const days = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    days.push(d.getTime());
+  }
+  const logDates = logs.map(log => {
+    const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+    return new Date(year, month - 1, day).getTime();
+  });
+
+  return (
+    <div ref={scrollRef} className="flex gap-1.5 mt-4 overflow-x-auto pb-2 scrollbar-thin">
+      {days.map(dayTime => {
+        const isDone = logDates.includes(dayTime);
+        return (
+          <div 
+            key={dayTime} 
+            className={`min-w-[14px] h-[14px] rounded-[4px] transition-all duration-300 ${isDone ? `bg-gradient-to-tr ${themeGradient} shadow-md` : 'bg-gray-200 dark:bg-gray-800'}`} 
+            title={new Date(dayTime).toLocaleDateString('pt-BR')} 
+          />
+        );
+      })}
+    </div>
+  );
+};
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -455,36 +495,6 @@ export default function Home() {
     if (res?.error) setAuthError("Email ou senha incorretos.");
   };
 
-  const renderHeatmap = (logs: { date: string }[], themeGradient: string) => {
-    const days = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      days.push(d.getTime());
-    }
-    const logDates = logs.map(log => {
-      const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
-      return new Date(year, month - 1, day).getTime();
-    });
-
-    return (
-      <div className="flex gap-1.5 mt-4 overflow-x-auto pb-2 scrollbar-thin">
-        {days.map(dayTime => {
-          const isDone = logDates.includes(dayTime);
-          return (
-            <div 
-              key={dayTime} 
-              className={`min-w-[14px] h-[14px] rounded-[4px] transition-all duration-300 ${isDone ? `bg-gradient-to-tr ${themeGradient} shadow-md` : 'bg-gray-200 dark:bg-gray-800'}`} 
-              title={new Date(dayTime).toLocaleDateString('pt-BR')} 
-            />
-          );
-        })}
-      </div>
-    );
-  };
-
   if (status === "loading" || !mounted) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">Carregando...</div>;
   }
@@ -809,7 +819,8 @@ export default function Home() {
                   </div>
                   
                   <div className={`mt-5 pt-5 border-t border-gray-100 dark:border-gray-800/80 transition-opacity ${isPaused ? 'opacity-30' : ''}`}>
-                    {renderHeatmap(habit.logs, habitGradient)}
+                    {/* Alterado para o novo componente Heatmap */}
+                    <Heatmap logs={habit.logs} themeGradient={habitGradient} />
                   </div>
                 </div>
               );
