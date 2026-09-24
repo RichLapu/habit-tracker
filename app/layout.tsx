@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Diz ao navegador que somos um PWA */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2563eb" />
+        <link rel="apple-touch-icon" href="/icon-256.png" />
       </head>
       <body className={inter.className}>
         <Providers>{children}</Providers> 
