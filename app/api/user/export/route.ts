@@ -5,7 +5,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export const dynamic = 'force-dynamic';
 
-// Função para calcular a sequência real de dias (Streak)
 function calculateStreak(logs: { date: Date | string }[]) {
   if (!logs || logs.length === 0) return 0;
   
@@ -35,7 +34,7 @@ function calculateStreak(logs: { date: Date | string }[]) {
 }
 
 const WEEK_MAP: Record<string, string> = {
-  "0": "Dom", "1": "Seg", "2": "Ter", "3": "Qua", "4": "Qui", "5": "Sex", "6": "Sáb"
+  "0": "Domingo", "1": "Segunda", "2": "Terça", "3": "Quarta", "4": "Quinta", "5": "Sexta", "6": "Sábado"
 };
 
 export async function GET() {
@@ -43,13 +42,11 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return new NextResponse("Não autorizado", { status: 401 });
 
-    // Busca dados do usuário
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { name: true, email: true, xp: true, level: true }
     });
 
-    // Busca hábitos com seus logs
     const habits = await prisma.habit.findMany({
       where: { userId: session.user.id },
       include: { logs: true },
@@ -63,7 +60,6 @@ export async function GET() {
     }).format(now);
 
     const userName = user?.name || session.user.name || session.user.email?.split('@')[0] || "Usuário";
-    const userEmail = user?.email || session.user.email || "";
     const userLevel = user?.level || 1;
     const userXp = user?.xp || 0;
 
@@ -72,7 +68,6 @@ export async function GET() {
     const totalLogsCount = habits.reduce((acc, h) => acc + h.logs.length, 0);
     const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateStreak(h.logs))) : 0;
 
-    // Constrói as linhas da tabela
     const habitsRowsHtml = habits.map(habit => {
       const streak = calculateStreak(habit.logs);
       const days = habit.daysOfWeek
@@ -90,12 +85,11 @@ export async function GET() {
           <td style="padding: 12px; color: #4b5563; font-size: 13px;">${days}</td>
           <td style="padding: 12px; color: #4b5563; font-size: 13px;">${times}</td>
           <td style="padding: 12px; text-align: center; font-weight: 700; color: #2563eb;">${habit.logs.length}</td>
-          <td style="padding: 12px; text-align: center; font-weight: 700; color: #d97706;">🔥 ${streak}d</td>
+          <td style="padding: 12px; text-align: center; font-weight: 700; color: #d97706;">🔥 ${streak} ${streak === 1 ? 'dia' : 'dias'}</td>
         </tr>
       `;
     }).join('');
 
-    // Documento HTML formatado
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -113,7 +107,6 @@ export async function GET() {
       </head>
       <body class="p-8 text-slate-800">
         
-        <!-- AVISO NA TELA (MANTIDO APENAS NO NAVEGADOR) -->
         <div class="no-print max-w-4xl mx-auto mb-6 p-4 bg-blue-600 text-white rounded-2xl flex justify-between items-center shadow-lg">
           <div>
             <h3 class="font-bold text-lg">📄 Seu Relatório em PDF está pronto!</h3>
@@ -124,7 +117,6 @@ export async function GET() {
           </button>
         </div>
 
-        <!-- DOCUMENTO FORMATADO DO RELATÓRIO -->
         <div class="max-w-4xl mx-auto bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
           
           <!-- CABEÇALHO -->
@@ -134,7 +126,7 @@ export async function GET() {
                 <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-lg">H</div>
                 <h1 class="text-2xl font-black text-slate-900 tracking-tight">Habit Tracker Pro</h1>
               </div>
-              <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Relatório Executivo de Desempenho</p>
+              <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Relatório de Desempenho</p>
             </div>
             <div class="text-right">
               <p class="text-xs text-slate-400 font-semibold">EMISSÃO DO RELATÓRIO</p>
@@ -143,18 +135,16 @@ export async function GET() {
           </div>
 
           <!-- INFORMAÇÕES DO USUÁRIO & NÍVEL -->
-          <div class="grid grid-cols-3 gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-            <div class="col-span-2">
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Usuário</p>
-              <h2 class="text-xl font-extrabold text-slate-900">${userName}</h2>
-              <p class="text-xs font-medium text-slate-500">${userEmail}</p>
+          <div class="flex justify-between items-center mb-8 bg-slate-50 p-6 rounded-2xl">
+            <div>
+              <h2 class="text-3xl font-extrabold text-slate-900">${userName}</h2>
             </div>
-            <div class="flex flex-col items-end justify-center">
-              <div class="bg-amber-100 text-amber-800 border border-amber-200 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm">
-                <span class="text-lg">⭐</span>
+            <div class="flex items-center">
+              <div class="bg-amber-100 text-amber-800 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-sm">
+                <span class="text-xl">⭐</span>
                 <div>
-                  <p class="text-xs font-black uppercase text-amber-600">Nível ${userLevel}</p>
-                  <p class="text-xs font-bold text-amber-900">${userXp} XP Acumulados</p>
+                  <p class="text-sm font-black uppercase text-amber-600">Nível ${userLevel}</p>
+                  <p class="text-xs font-bold text-amber-900 mt-0.5">${userXp} XP Acumulados</p>
                 </div>
               </div>
             </div>
@@ -162,21 +152,21 @@ export async function GET() {
 
           <!-- CARDS DE ESTATÍSTICAS -->
           <div class="grid grid-cols-4 gap-4 mb-8">
-            <div class="bg-blue-50/60 p-4 rounded-2xl border border-blue-100">
+            <div class="bg-blue-50/60 p-5 rounded-2xl">
               <p class="text-xs font-bold text-blue-600 uppercase">Total de Hábitos</p>
               <p class="text-2xl font-black text-slate-900 mt-1">${totalHabits}</p>
             </div>
-            <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+            <div class="bg-emerald-50/60 p-5 rounded-2xl">
               <p class="text-xs font-bold text-emerald-600 uppercase">Hábitos Ativos</p>
               <p class="text-2xl font-black text-slate-900 mt-1">${activeHabits}</p>
             </div>
-            <div class="bg-purple-50/60 p-4 rounded-2xl border border-purple-100">
+            <div class="bg-purple-50/60 p-5 rounded-2xl">
               <p class="text-xs font-bold text-purple-600 uppercase">Conclusões Totais</p>
               <p class="text-2xl font-black text-slate-900 mt-1">${totalLogsCount}</p>
             </div>
-            <div class="bg-orange-50/60 p-4 rounded-2xl border border-orange-100">
+            <div class="bg-orange-50/60 p-5 rounded-2xl">
               <p class="text-xs font-bold text-orange-600 uppercase">Maior Streak</p>
-              <p class="text-2xl font-black text-slate-900 mt-1">🔥 ${bestStreak}d</p>
+              <p class="text-2xl font-black text-slate-900 mt-1">🔥 ${bestStreak} ${bestStreak === 1 ? 'dia' : 'dias'}</p>
             </div>
           </div>
 
@@ -205,13 +195,12 @@ export async function GET() {
           <!-- RODAPÉ -->
           <div class="pt-6 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400 font-medium">
             <p>Habit Tracker Pro • Sistema de Alta Performance</p>
-            <p>Documento gerado automaticamente pelo usuário</p>
+            <p>Documento gerado automaticamente</p>
           </div>
 
         </div>
 
         <script>
-          // Abre a caixa de impressão/salvar em PDF automaticamente após carregar
           window.onload = function() {
             setTimeout(function() {
               window.print();
@@ -229,7 +218,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Erro ao gerar relatório:", error);
     return new NextResponse("Erro ao gerar relatório PDF", { status: 500 });
   }
 }
