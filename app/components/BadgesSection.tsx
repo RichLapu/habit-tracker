@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BADGES_LIST } from "../lib/badges";
+import { BADGES_LIST } from "@/lib/badges";
 import { Award, ChevronDown, Lock } from "lucide-react";
 
 type BadgesSectionProps = {
