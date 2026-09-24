@@ -681,7 +681,7 @@ export default function Home() {
                 </div>
                 <button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2 active:scale-95">
                   <Plus size={20} strokeWidth={3} />
-                  <span className="hidden sm:inline">Criar</span>
+                  <span>Criar</span>
                 </button>
               </div>
             </div>
