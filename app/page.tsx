@@ -6,6 +6,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap } from "lucide-react";
+import ProgressChart from "./components/ProgressChart";
 
 type Habit = {
   id: string;
@@ -599,6 +600,9 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* GRÁFICO DE DESEMPENHO (COLOCAR AQUI) */}
+            <ProgressChart habits={habits} />
           </div>
 
           <div className="flex items-center gap-3 self-end md:self-auto mt-4 md:mt-0">
