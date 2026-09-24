@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap } from "lucide-react";
 
 type Habit = {
   id: string;
@@ -602,6 +602,15 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3 self-end md:self-auto mt-4 md:mt-0">
+            {/* Botão de Exportar para Excel (.csv) */}
+            <button 
+              onClick={() => window.open('/api/user/export', '_blank')} 
+              className="p-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors shadow-sm" 
+              title="Baixar Dados (Excel)"
+            >
+              <Download size={20} />
+            </button>
+
             {!isSubscribed ? (
               <button onClick={requestNotificationPermission} className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm" title="Ativar Notificações">
                 <Bell size={20} />
@@ -611,9 +620,11 @@ export default function Home() {
                 <BellOff size={20} />
               </button>
             )}
+
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
+
             <button onClick={() => signOut()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 font-bold transition-colors">
               <LogOut size={18} />
               <span className="hidden sm:inline">Sair</span>
