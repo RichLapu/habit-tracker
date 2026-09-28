@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap, Eye, EyeOff } from "lucide-react";
 import ProgressChart from "./components/ProgressChart";
 import BadgesSection from "./components/BadgesSection";
 
@@ -36,6 +36,22 @@ const WEEK_DAYS = [
   { value: "5", label: "S" },
   { value: "6", label: "S" },
 ];
+
+const getPasswordStrength = (pass: string) => {
+  if (!pass) return { score: 0, label: "", color: "bg-gray-200 dark:bg-gray-800" };
+
+  let score = 0;
+  if (pass.length >= 6) score++; 
+  if (pass.length >= 8 && (/[A-Z]/.test(pass) || /[0-9]/.test(pass))) score++;
+  if (pass.length >= 10 && /[^A-Za-z0-9]/.test(pass)) score++; 
+
+  switch (score) {
+    case 1: return { score: 1, label: "Senha fraca.", color: "bg-red-500" };
+    case 2: return { score: 2, label: "Senha boa.", color: "bg-yellow-500" };
+    case 3: return { score: 3, label: "Senha forte.", color: "bg-emerald-500" };
+    default: return { score: 0, label: "", color: "bg-gray-200 dark:bg-gray-800" };
+  }
+};
 
 // --- NOVO COMPONENTE: Heatmap com Scroll Automático ---
 const Heatmap = ({ logs, themeGradient }: { logs: { date: string }[], themeGradient: string }) => {
@@ -113,6 +129,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [toast, setToast] = useState({ show: false, message: "" });
 
@@ -526,10 +543,52 @@ export default function Home() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">E-mail</label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white shadow-sm" placeholder="seu@email.com" />
             </div>
+            
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Senha</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white shadow-sm" placeholder="••••••••" />
+              <div className="relative flex items-center">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  className="w-full px-4 py-3 pr-11 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white shadow-sm transition-all" 
+                  placeholder="••••••••" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              
+              {/* INDICADOR DE FORÇA DA SENHA */}
+              {authMode === "register" && password.length > 0 && (() => {
+                const strength = getPasswordStrength(password);
+                return (
+                  <div className="mt-2 space-y-1.5 animate-in fade-in duration-300">
+                    <div className="flex gap-2 h-1.5">
+                      {[1, 2, 3].map((step) => (
+                        <div
+                          key={step}
+                          className={`flex-1 rounded-full h-full transition-all duration-300 ${
+                            step <= strength.score ? strength.color : "bg-gray-200 dark:bg-gray-800"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {strength.label && (
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        {strength.label}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
+
             {authError && <p className="text-red-500 text-sm text-center font-bold bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">{authError}</p>}
             <button type="submit" className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
               {authMode === "login" ? "Acessar Plataforma" : "Criar Conta Grátis"}
