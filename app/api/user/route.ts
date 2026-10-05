@@ -24,3 +24,19 @@ export async function GET() {
     return NextResponse.json({ error: "Erro ao buscar dados do usuário" }, { status: 500 });
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return new NextResponse("Não autorizado", { status: 401 });
+    const { name } = await req.json();
+    
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { name }
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return new NextResponse("Erro ao atualizar perfil", { status: 500 });
+  }
+}

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap, Eye, EyeOff, Search } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap, Eye, EyeOff, Search, Palette, Tag, Settings } from "lucide-react";
 import ProgressChart from "./components/ProgressChart";
 import BadgesSection from "./components/BadgesSection";
 
@@ -16,8 +16,22 @@ type Habit = {
   reminderTimes: string | null;
   isActive: boolean;
   daysOfWeek: string | null;
+  color?: string | null;
+  category?: string | null;
   logs: { date: string }[];
 };
+
+// --- PRESETS DE CORES E CATEGORIAS ---
+const COLOR_PRESETS = [
+  { name: "Azul", value: "from-blue-500 to-cyan-400 shadow-blue-500/50", bg: "bg-blue-500" },
+  { name: "Roxo", value: "from-purple-500 to-pink-500 shadow-purple-500/50", bg: "bg-purple-500" },
+  { name: "Verde", value: "from-emerald-500 to-teal-400 shadow-emerald-500/50", bg: "bg-emerald-500" },
+  { name: "Laranja", value: "from-orange-500 to-yellow-400 shadow-orange-500/50", bg: "bg-orange-500" },
+  { name: "Rosa", value: "from-pink-500 to-rose-400 shadow-pink-500/50", bg: "bg-pink-500" },
+  { name: "Cinza", value: "from-gray-600 to-slate-500 shadow-gray-500/50", bg: "bg-gray-600" },
+];
+
+const CATEGORIES = ["Saúde", "Estudos", "Trabalho", "Finanças", "Lazer", "Casa", "Espiritual", "Outros"];
 
 const COLOR_GRADIENTS = [
   "from-blue-500 to-cyan-400 shadow-blue-500/50",
@@ -53,13 +67,11 @@ const getPasswordStrength = (pass: string) => {
   }
 };
 
-// --- NOVO COMPONENTE: Heatmap com Scroll Automático ---
 const Heatmap = ({ logs, themeGradient }: { logs: { date: string }[], themeGradient: string }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
-      // Força a barra de rolagem a ir totalmente para a direita
       scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
     }
   }, [logs]);
@@ -98,29 +110,39 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   
   const [habits, setHabits] = useState<Habit[]>([]);
-  // --- NOVOS ESTADOS GAMIFICATION ---
+  
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
+
+  // --- ESTADOS DO USUÁRIO ---
+  const [displayName, setDisplayName] = useState("");
+  const [profileModal, setProfileModal] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
 
   const [newHabit, setNewHabit] = useState("");
   const [timeInput, setTimeInput] = useState("");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [selectedDays, setSelectedDays] = useState<string[]>(["0", "1", "2", "3", "4", "5", "6"]);
+  const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0].value);
+  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   
-  // --- NOVO ESTADO: Pesquisa ---
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("Todos");
   
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, habitId: "", title: "" });
+  
   const [editModal, setEditModal] = useState({ isOpen: false, habitId: "" });
   const [editTitle, setEditTitle] = useState("");
   const [editTimeInput, setEditTimeInput] = useState("");
   const [editSelectedTimes, setEditSelectedTimes] = useState<string[]>([]);
   const [editSelectedDays, setEditSelectedDays] = useState<string[]>([]);
   const [editIsActive, setEditIsActive] = useState(true);
+  const [editColor, setEditColor] = useState(COLOR_PRESETS[0].value);
+  const [editCategory, setEditCategory] = useState(CATEGORIES[0]);
 
   const [nativeNotifGranted, setNativeNotifGranted] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -160,11 +182,15 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       fetchHabits();
-      fetchUserStats(); // Busca o XP e Level ao carregar a página
+      fetchUserStats(); 
+      if (session?.user?.name) {
+        setDisplayName(session.user.name);
+      } else if (session?.user?.email) {
+        setDisplayName(session.user.email.split('@')[0]);
+      }
     }
-  }, [status]);
+  }, [status, session]);
 
-  // --- NOVA FUNÇÃO: Busca XP e Level ---
   const fetchUserStats = async () => {
     try {
       const timestamp = new Date().getTime();
@@ -173,6 +199,7 @@ export default function Home() {
         const data = await response.json();
         setXp(data.xp);
         setLevel(data.level);
+        if (data.name) setDisplayName(data.name);
       }
     } catch (error) {
       console.error("Erro ao buscar stats do usuário:", error);
@@ -345,6 +372,24 @@ export default function Home() {
     }
   };
 
+  const handleUpdateProfile = async () => {
+    if (!newUserName.trim()) return;
+    try {
+      const res = await fetch("/api/user", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newUserName })
+      });
+      if (res.ok) {
+        setDisplayName(newUserName);
+        setProfileModal(false);
+        showToast("Perfil atualizado com sucesso!");
+      }
+    } catch (error) {
+      showToast("Erro ao atualizar o perfil.");
+    }
+  };
+
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHabit.trim() || selectedDays.length === 0) {
@@ -358,13 +403,17 @@ export default function Home() {
         body: JSON.stringify({ 
           title: newHabit, 
           reminderTimes: selectedTimes.length > 0 ? selectedTimes.join(",") : null,
-          daysOfWeek: selectedDays.join(",")
+          daysOfWeek: selectedDays.join(","),
+          color: selectedColor,
+          category: selectedCategory
         }),
       });
       if (response.ok) {
         setNewHabit("");
         setSelectedTimes([]);
         setSelectedDays(["0", "1", "2", "3", "4", "5", "6"]);
+        setSelectedColor(COLOR_PRESETS[0].value);
+        setSelectedCategory(CATEGORIES[0]);
         showToast("Hábito criado com sucesso!");
         fetchHabits(); 
       }
@@ -396,7 +445,7 @@ export default function Home() {
       const res = await fetch(`/api/habits/${habit.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: habit.title, reminderTimes: habit.reminderTimes, isActive: newStatus, daysOfWeek: habit.daysOfWeek }),
+        body: JSON.stringify({ title: habit.title, reminderTimes: habit.reminderTimes, isActive: newStatus, daysOfWeek: habit.daysOfWeek, color: habit.color, category: habit.category }),
       });
       if (!res.ok) throw new Error("Erro na API");
       showToast(newStatus ? "Hábito retomado!" : "Hábito pausado!");
@@ -411,6 +460,8 @@ export default function Home() {
     setEditSelectedTimes(habit.reminderTimes ? habit.reminderTimes.split(",") : []);
     setEditSelectedDays(habit.daysOfWeek ? habit.daysOfWeek.split(",") : ["0", "1", "2", "3", "4", "5", "6"]);
     setEditIsActive(habit.isActive);
+    setEditColor(habit.color || COLOR_PRESETS[0].value);
+    setEditCategory(habit.category || CATEGORIES[0]);
     setEditTimeInput("");
     setEditModal({ isOpen: true, habitId: habit.id });
   };
@@ -431,7 +482,7 @@ export default function Home() {
       const response = await fetch(`/api/habits/${editModal.habitId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: editTitle, reminderTimes: reminderTimesStr, isActive: editIsActive, daysOfWeek: daysOfWeekStr }),
+        body: JSON.stringify({ title: editTitle, reminderTimes: reminderTimesStr, isActive: editIsActive, daysOfWeek: daysOfWeekStr, color: editColor, category: editCategory }),
       });
 
       if (response.ok) {
@@ -462,7 +513,6 @@ export default function Home() {
           const todayStr = new Date(today.getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
           newLogs = [{ date: `${todayStr}T00:00:00.000Z` }, ...habit.logs];
           
-          // --- OTIMIZAÇÃO DE GAMIFICAÇÃO: Soma o XP na hora! ---
           setXp(prev => {
             const next = prev + 10;
             setLevel(Math.floor(next / 100) + 1);
@@ -475,7 +525,6 @@ export default function Home() {
               return !(day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear());
           });
 
-          // --- OTIMIZAÇÃO DE GAMIFICAÇÃO: Remove o XP na hora se desmarcar! ---
           setXp(prev => {
             const next = Math.max(0, prev - 10);
             setLevel(Math.floor(next / 100) + 1);
@@ -492,7 +541,6 @@ export default function Home() {
       if (!response.ok) throw new Error("Falha no servidor");
     } catch (error) {
       console.error(error);
-      // Se a internet cair, desfaz a bolinha e o XP
       setHabits(previousHabits); 
       setXp(previousXp);
       setLevel(previousLevel);
@@ -624,13 +672,16 @@ export default function Home() {
   const completionRate = activeHabits > 0 ? Math.round((completedToday / activeHabits) * 100) : 0;
   const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateRealStreak(h.logs))) : 0;
 
-  // Calculo visual da barra de progresso (0% a 100%)
   const xpProgress = xp % 100;
 
-  // --- LÓGICA DE PESQUISA (Filtra os hábitos) ---
-  const filteredHabits = habits.filter(habit =>
-    habit.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // --- LÓGICA DE CATEGORIAS (FILTRO DINÂMICO) ---
+  const dynamicCategories = ["Todos", ...Array.from(new Set(habits.map(h => h.category).filter(Boolean)))];
+
+  const filteredHabits = habits.filter(habit => {
+    const matchesSearch = habit.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategoryFilter === "Todos" ? true : habit.category === selectedCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <main className="min-h-screen bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-8 transition-colors duration-300 relative overflow-x-hidden">
@@ -641,10 +692,13 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-white/20 dark:border-gray-800/50">
           <div className="flex-1 w-full">
-            <div className="flex justify-between w-full">
+            <div className="flex justify-between w-full items-center">
               <div>
-                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight">
-                  Olá, {session?.user?.name || session?.user?.email?.split('@')[0]}
+                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight flex items-center gap-3">
+                  Olá, {displayName || "Visitante"}
+                  <button onClick={() => { setNewUserName(displayName); setProfileModal(true); }} className="text-gray-400 hover:text-blue-500 transition-colors p-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-sm">
+                    <Settings size={18} />
+                  </button>
                 </h1>
                 <div className="flex items-center gap-2 mt-1 text-gray-500 dark:text-gray-400 font-medium capitalize text-sm">
                   <span>{new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(currentTime)}</span>
@@ -654,7 +708,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* --- NOVA BARRA DE XP NO HEADER --- */}
             <div className="mt-5 w-full bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800/80 shadow-inner">
               <div className="flex justify-between items-center mb-2.5">
                 <div className="flex items-center gap-2">
@@ -679,14 +732,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* GRÁFICO DE DESEMPENHO*/}
             <ProgressChart habits={habits} />
-            {/* GRÁFICO DE Conquistas*/}
             <BadgesSection habits={habits} level={level} />
           </div>
 
           <div className="flex items-center gap-3 self-end md:self-auto mt-4 md:mt-0">
-            {/* Botão de Exportar para Excel (.csv) */}
             <button 
               onClick={() => window.open('/api/user/export', '_blank')} 
               className="p-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors shadow-sm" 
@@ -763,6 +813,31 @@ export default function Home() {
               </div>
             </div>
             
+            {/* SELETORES DE CATEGORIA E COR NO FORMULÁRIO */}
+            <div className="flex flex-col md:flex-row gap-4 mt-2 pt-4 border-t border-gray-100 dark:border-gray-800/50">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5"><Tag size={14}/> Categoria</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORIES.map(cat => (
+                    <button key={cat} type="button" onClick={() => setSelectedCategory(cat)} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 md:border-l border-gray-100 dark:border-gray-800/50 md:pl-4">
+                <label className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5"><Palette size={14}/> Cor do Card</label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_PRESETS.map(color => (
+                    <button key={color.name} type="button" onClick={() => setSelectedColor(color.value)} title={color.name} className={`w-8 h-8 rounded-full transition-all flex items-center justify-center ${color.bg} ${selectedColor === color.value ? 'ring-4 ring-blue-500/30 scale-110 shadow-lg' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}>
+                      {selectedColor === color.value && <Check size={14} className="text-white" strokeWidth={4} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Repetir nos dias:</span>
               <div className="flex gap-1.5">
@@ -791,27 +866,42 @@ export default function Home() {
           </form>
         </div>
 
-        {/* --- BARRA DE PESQUISA --- */}
+        {/* --- BARRA DE PESQUISA E FILTRO --- */}
         {!isLoading && habits.length > 0 && (
-          <div className="relative mb-6 animate-in fade-in duration-300">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-              <Search size={20} className="text-gray-400" />
+          <div className="mb-6 animate-in fade-in duration-300">
+            <div className="relative mb-3">
+              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <Search size={20} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Pesquisar hábitos..."
+                className="w-full pl-12 pr-12 py-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border border-white/20 dark:border-gray-800/50 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all shadow-sm font-medium placeholder:text-gray-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute inset-y-0 right-0 pr-5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              )}
             </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Pesquisar hábitos..."
-              className="w-full pl-12 pr-12 py-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border border-white/20 dark:border-gray-800/50 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all shadow-sm font-medium placeholder:text-gray-400"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute inset-y-0 right-0 pr-5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            )}
+
+            {/* Abas de Categorias */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+              {dynamicCategories.map((cat: string) => (
+                <button 
+                  key={cat} 
+                  onClick={() => setSelectedCategoryFilter(cat)} 
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap shadow-sm border border-transparent ${selectedCategoryFilter === cat ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-white/80 dark:bg-gray-900/80 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 border-white/20 dark:border-gray-800/50'}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -830,7 +920,7 @@ export default function Home() {
             <div className="text-center bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm py-16 rounded-3xl border border-gray-200 dark:border-gray-800">
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4"><Search size={28} /></div>
               <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-1">Nenhum resultado</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Não encontramos nenhum hábito com "{searchQuery}".</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Verifique a pesquisa ou a categoria selecionada.</p>
             </div>
           ) : (
             filteredHabits.map((habit) => {
@@ -841,7 +931,8 @@ export default function Home() {
               });
 
               const realStreak = calculateRealStreak(habit.logs);
-              const habitGradient = COLOR_GRADIENTS[habit.id.charCodeAt(habit.id.length - 1) % COLOR_GRADIENTS.length];
+              // Usa a cor escolhida OU a gerada por ID caso seja antiga e não tenha cor salva
+              const habitGradient = habit.color || COLOR_GRADIENTS[habit.id.charCodeAt(habit.id.length - 1) % COLOR_GRADIENTS.length];
               
               const isPaused = !habit.isActive;
               
@@ -882,19 +973,26 @@ export default function Home() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 mt-3 ml-14">
+                      <div className="flex flex-wrap items-center gap-3 mt-3 ml-14">
+                        {/* TAG DE CATEGORIA */}
+                        {habit.category && (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <Tag size={10} /> {habit.category}
+                          </span>
+                        )}
+
                         {habit.reminderTimes && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Bell size={14} className="text-gray-400" />
-                            <div className="flex gap-1.5 flex-wrap">
+                            <div className="flex gap-1 flex-wrap">
                               {habit.reminderTimes.split(",").map(time => (
-                                <span key={time} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-md font-bold border border-gray-200 dark:border-gray-700 shadow-sm">{time}</span>
+                                <span key={time} className="text-[11px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-md font-bold border border-gray-200 dark:border-gray-700 shadow-sm">{time}</span>
                               ))}
                             </div>
                           </div>
                         )}
                         {habit.daysOfWeek && habit.daysOfWeek !== "0,1,2,3,4,5,6" && (
-                           <div className="flex gap-1 text-xs font-bold text-gray-400 dark:text-gray-500">
+                           <div className="flex gap-1 text-[11px] font-bold text-gray-400 dark:text-gray-500">
                              {habit.daysOfWeek.split(",").map(d => WEEK_DAYS.find(wd => wd.value === d)?.label).join(", ")}
                            </div>
                         )}
@@ -910,13 +1008,16 @@ export default function Home() {
                       <button onClick={() => toggleHabitActiveStatus(habit)} title={isPaused ? "Retomar Hábito" : "Pausar Hábito"} className="text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md">
                         {isPaused ? <PlayCircle size={18} /> : <PauseCircle size={18} />}
                       </button>
-                      <button onClick={() => openEdit(habit)} className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md"><Edit2 size={18} /></button>
-                      <button onClick={() => setDeleteModal({ isOpen: true, habitId: habit.id, title: habit.title })} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-red-50 dark:bg-red-900/10 rounded-xl hover:shadow-md"><Trash2 size={18} /></button>
+                      <button onClick={() => openEdit(habit)} className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-gray-50 dark:bg-gray-800 rounded-xl hover:shadow-md">
+                        <Edit2 size={18} />
+                      </button>
+                      <button onClick={() => setDeleteModal({ isOpen: true, habitId: habit.id, title: habit.title })} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all bg-red-50 dark:bg-red-900/10 rounded-xl hover:shadow-md">
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
                   
                   <div className={`mt-5 pt-5 border-t border-gray-100 dark:border-gray-800/80 transition-opacity ${isPaused ? 'opacity-30' : ''}`}>
-                    {/* Alterado para o novo componente Heatmap */}
                     <Heatmap logs={habit.logs} themeGradient={habitGradient} />
                   </div>
                 </div>
@@ -936,55 +1037,70 @@ export default function Home() {
         </footer>
       </div>
 
-      {activeNotification && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center pt-24 p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-gray-900 rounded-[2rem] shadow-[0_0_50px_rgba(59,130,246,0.4)] border border-blue-500/30 p-8 max-w-sm w-full animate-in slide-in-from-top-10">
-            <div className="flex items-center justify-center w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mx-auto mb-6 animate-bounce shadow-lg shadow-blue-500/20">
-              <BellRing size={48} />
-            </div>
-            <h2 className="text-3xl font-extrabold text-center text-gray-900 dark:text-white mb-2 tracking-tight">Alarme!</h2>
-            <p className="text-xl text-center font-bold text-blue-600 dark:text-blue-400 mb-8">{activeNotification.title}</p>
-            <div className="flex flex-col gap-3">
-              <button onClick={handleNotificationDone} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 active:scale-95">
-                <Check size={24} strokeWidth={3} /> Concluir Agora
-              </button>
-              <div className="flex gap-3 mt-2">
-                <button onClick={() => handleSnooze(5)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <Timer size={18} /> Adiar 5m
-                </button>
-                <button onClick={() => handleSnooze(15)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <Timer size={18} /> Adiar 15m
-                </button>
+      {/* MODAL DE EDIÇÃO DE PERFIL */}
+      {profileModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 p-8 max-w-sm w-full">
+            <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3 mb-6"><Settings size={24} className="text-blue-500" /> Editar Perfil</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nome de Exibição</label>
+                <input type="text" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white font-medium" />
               </div>
-              <button onClick={() => setActiveNotification(null)} className="mt-4 text-sm font-semibold text-center w-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Ignorar</button>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setProfileModal(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
+              <button onClick={handleUpdateProfile} className="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30">Salvar Nome</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL DE EDIÇÃO DE HÁBITO */}
       {editModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 p-8 max-w-md w-full">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 p-8 max-w-md w-full max-h-[90vh] overflow-y-auto scrollbar-thin">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3"><Edit2 size={24} className="text-blue-500" /> Editar Hábito</h3>
               <button onClick={() => setEditModal({ isOpen: false, habitId: "" })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X size={20} strokeWidth={3} /></button>
             </div>
-            <div className="space-y-5">
+            
+            <div className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nome do Hábito</label>
                 <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white font-medium" />
+              </div>
+
+              {/* EDITAR CATEGORIA E COR */}
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5"><Tag size={14}/> Categoria</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CATEGORIES.map(cat => (
+                      <button key={cat} type="button" onClick={() => setEditCategory(cat)} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${editCategory === cat ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1.5"><Palette size={14}/> Cor do Card</label>
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_PRESETS.map(color => (
+                      <button key={color.name} type="button" onClick={() => setEditColor(color.value)} title={color.name} className={`w-8 h-8 rounded-full transition-all flex items-center justify-center ${color.bg} ${editColor === color.value ? 'ring-4 ring-blue-500/30 scale-110 shadow-lg' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}>
+                        {editColor === color.value && <Check size={14} className="text-white" strokeWidth={4} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Repetir nos dias</label>
                 <div className="flex gap-1.5 flex-wrap">
                   {WEEK_DAYS.map((day) => (
-                    <button
-                      key={day.value}
-                      type="button"
-                      onClick={() => toggleDaySelection(day.value, true)}
-                      className={`w-9 h-9 rounded-full text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${editSelectedDays.includes(day.value) ? "bg-blue-600 text-white shadow-blue-500/30" : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                    >
+                    <button key={day.value} type="button" onClick={() => toggleDaySelection(day.value, true)} className={`w-9 h-9 rounded-full text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${editSelectedDays.includes(day.value) ? "bg-blue-600 text-white shadow-blue-500/30" : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
                       {day.label}
                     </button>
                   ))}
@@ -1015,6 +1131,32 @@ export default function Home() {
             <div className="flex gap-3 mt-10">
               <button onClick={() => setEditModal({ isOpen: false, habitId: "" })} className="flex-1 py-4 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
               <button onClick={saveEdit} className="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeNotification && (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center pt-24 p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-900 rounded-[2rem] shadow-[0_0_50px_rgba(59,130,246,0.4)] border border-blue-500/30 p-8 max-w-sm w-full animate-in slide-in-from-top-10">
+            <div className="flex items-center justify-center w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mx-auto mb-6 animate-bounce shadow-lg shadow-blue-500/20">
+              <BellRing size={48} />
+            </div>
+            <h2 className="text-3xl font-extrabold text-center text-gray-900 dark:text-white mb-2 tracking-tight">Alarme!</h2>
+            <p className="text-xl text-center font-bold text-blue-600 dark:text-blue-400 mb-8">{activeNotification.title}</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleNotificationDone} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 active:scale-95">
+                <Check size={24} strokeWidth={3} /> Concluir Agora
+              </button>
+              <div className="flex gap-3 mt-2">
+                <button onClick={() => handleSnooze(5)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <Timer size={18} /> Adiar 5m
+                </button>
+                <button onClick={() => handleSnooze(15)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <Timer size={18} /> Adiar 15m
+                </button>
+              </div>
+              <button onClick={() => setActiveNotification(null)} className="mt-4 text-sm font-semibold text-center w-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Ignorar</button>
             </div>
           </div>
         </div>

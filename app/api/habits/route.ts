@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Agora recebemos também os dias da semana!
-    const { title, reminderTimes, daysOfWeek } = await request.json();
+    const { title, reminderTimes, daysOfWeek, color, category } = await request.json();
 
     if (!title) {
       return NextResponse.json({ error: "O título é obrigatório" }, { status: 400 });
@@ -44,6 +44,8 @@ export async function POST(request: Request) {
         userId: session.user.id,
         reminderTimes: reminderTimes || null,
         daysOfWeek: daysOfWeek || "0,1,2,3,4,5,6", // Se não mandar, ativa todos os dias
+        color,
+        category,
         isActive: true,
       },
     });

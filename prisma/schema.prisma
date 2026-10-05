@@ -73,7 +73,9 @@ model Habit {
   streak        Int        @default(0)
   reminderTimes String?    
   isActive      Boolean    @default(true)
-  daysOfWeek    String?    @default("0,1,2,3,4,5,6") 
+  daysOfWeek    String?    @default("0,1,2,3,4,5,6")
+  color         String?
+  category      String?
 }
 
 model HabitLog {
