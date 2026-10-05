@@ -384,6 +384,7 @@ export default function Home() {
         setDisplayName(newUserName);
         setProfileModal(false);
         showToast("Perfil atualizado com sucesso!");
+        fetchUserStats(); // Atualiza os dados locais
       }
     } catch (error) {
       showToast("Erro ao atualizar o perfil.");
@@ -696,8 +697,12 @@ export default function Home() {
               <div>
                 <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight flex items-center gap-3">
                   Olá, {displayName || "Visitante"}
-                  <button onClick={() => { setNewUserName(displayName); setProfileModal(true); }} className="text-gray-400 hover:text-blue-500 transition-colors p-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-sm">
-                    <Settings size={18} />
+                  <button 
+                    onClick={() => { setNewUserName(displayName); setProfileModal(true); }} 
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors bg-gray-100 dark:bg-gray-800 rounded-lg shadow-sm"
+                    title="Editar Nome"
+                  >
+                    <Settings size={16} />
                   </button>
                 </h1>
                 <div className="flex items-center gap-2 mt-1 text-gray-500 dark:text-gray-400 font-medium capitalize text-sm">

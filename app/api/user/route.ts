@@ -8,20 +8,20 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    if (!session?.user?.id) return new NextResponse("Não autorizado", { status: 401 });
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { xp: true, level: true }
+      select: { name: true, xp: true, level: true }
     });
 
-    return NextResponse.json({ 
-      xp: user?.xp || 0, 
-      level: user?.level || 1 
+    return NextResponse.json({
+      name: user?.name || session.user.name,
+      xp: user?.xp || 0,
+      level: user?.level || 1
     });
   } catch (error) {
-    console.error("ERRO GET USER:", error);
-    return NextResponse.json({ error: "Erro ao buscar dados do usuário" }, { status: 500 });
+    return new NextResponse("Erro ao buscar dados do usuário", { status: 500 });
   }
 }
 
@@ -29,13 +29,15 @@ export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return new NextResponse("Não autorizado", { status: 401 });
+    
     const { name } = await req.json();
     
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: { name }
     });
-    return NextResponse.json({ success: true });
+
+    return NextResponse.json({ success: true, name: updatedUser.name });
   } catch (error) {
     return new NextResponse("Erro ao atualizar perfil", { status: 500 });
   }
