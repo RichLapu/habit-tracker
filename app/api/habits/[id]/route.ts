@@ -14,7 +14,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const habitId = resolvedParams.id;
 
     // Recebendo os novos parâmetros
-    const { title, reminderTimes, isActive, daysOfWeek color, category } = await request.json();
+    const { title, reminderTimes, isActive, daysOfWeek, color, category } = await request.json();
 
     const updatedHabit = await prisma.habit.update({
       where: { id: habitId, userId: session.user.id },
