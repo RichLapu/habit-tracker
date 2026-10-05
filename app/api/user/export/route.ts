@@ -151,9 +151,14 @@ export async function GET() {
             <h3 class="font-bold text-lg">📄 Seu Relatório em PDF está pronto!</h3>
             <p class="text-sm text-blue-100">A janela de impressão foi aberta. Selecione <b>"Salvar como PDF"</b> no seu navegador.</p>
           </div>
-          <button onclick="window.print()" class="w-full sm:w-auto bg-white text-blue-600 px-5 py-2.5 rounded-xl font-extrabold shadow hover:bg-blue-50 transition">
-            🖨️ Abrir Impressão / PDF
-          </button>
+          <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-3">
+            <a href="/" class="w-full sm:w-auto flex items-center justify-center bg-blue-700/50 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-extrabold shadow transition decoration-none">
+              ← Voltar
+            </a>
+            <button onclick="window.print()" class="w-full sm:w-auto bg-white text-blue-600 px-5 py-2.5 rounded-xl font-extrabold shadow hover:bg-blue-50 transition">
+              🖨️ Imprimir / PDF
+            </button>
+          </div>
         </div>
 
         <!-- RELATÓRIO PRINCIPAL -->
