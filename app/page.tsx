@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap, Eye, EyeOff } from "lucide-react";
+import { Sun, Moon, LogOut, Plus, Trash2, Circle, Bell, BellOff, X, Edit2, AlertTriangle, BellRing, Check, Timer, TrendingUp, Target, Flame, PauseCircle, PlayCircle, Star, Download, Zap, Eye, EyeOff, Search } from "lucide-react";
 import ProgressChart from "./components/ProgressChart";
 import BadgesSection from "./components/BadgesSection";
 
@@ -106,6 +106,9 @@ export default function Home() {
   const [timeInput, setTimeInput] = useState("");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [selectedDays, setSelectedDays] = useState<string[]>(["0", "1", "2", "3", "4", "5", "6"]);
+  
+  // --- NOVO ESTADO: Pesquisa ---
+  const [searchQuery, setSearchQuery] = useState("");
   
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -624,6 +627,11 @@ export default function Home() {
   // Calculo visual da barra de progresso (0% a 100%)
   const xpProgress = xp % 100;
 
+  // --- LÓGICA DE PESQUISA (Filtra os hábitos) ---
+  const filteredHabits = habits.filter(habit =>
+    habit.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <main className="min-h-screen bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-8 transition-colors duration-300 relative overflow-x-hidden">
       
@@ -783,6 +791,30 @@ export default function Home() {
           </form>
         </div>
 
+        {/* --- BARRA DE PESQUISA --- */}
+        {!isLoading && habits.length > 0 && (
+          <div className="relative mb-6 animate-in fade-in duration-300">
+            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+              <Search size={20} className="text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar hábitos..."
+              className="w-full pl-12 pr-12 py-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border border-white/20 dark:border-gray-800/50 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all shadow-sm font-medium placeholder:text-gray-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="space-y-5">
           {isLoading ? (
             <div className="animate-pulse flex flex-col gap-5">
@@ -794,8 +826,14 @@ export default function Home() {
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Jornada Vazia</h3>
               <p className="text-gray-500 dark:text-gray-400 font-medium">Crie seu primeiro hábito e comece a ganhar níveis.</p>
             </div>
+          ) : filteredHabits.length === 0 ? (
+            <div className="text-center bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm py-16 rounded-3xl border border-gray-200 dark:border-gray-800">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4"><Search size={28} /></div>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-1">Nenhum resultado</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Não encontramos nenhum hábito com "{searchQuery}".</p>
+            </div>
           ) : (
-            habits.map((habit) => {
+            filteredHabits.map((habit) => {
               const today = new Date();
               const isCompleted = habit.logs.some(log => {
                 const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
