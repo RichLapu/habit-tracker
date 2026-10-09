@@ -85,9 +85,8 @@ const Heatmap = ({ logs, themeGradient }: { logs: { date: string }[], themeGradi
     days.push(d.getTime());
   }
   const logDates = logs.map(log => {
-    // CORREÇÃO: Usando new Date() em vez de split('T')
-    const d = new Date(log.date);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+    return new Date(year, month - 1, day).getTime();
   });
 
   return (
@@ -267,10 +266,9 @@ export default function Home() {
   const calculateRealStreak = (logs: {date: string}[]) => {
     if (!logs || logs.length === 0) return 0;
     
-    // CORREÇÃO: Usando new Date() em vez de split('T')
     const normalizedDates = [...new Set(logs.map(l => {
-      const d = new Date(l.date);
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const [year, month, day] = l.date.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day).getTime();
     }))].sort((a,b) => b - a);
 
     const now = new Date();
@@ -295,8 +293,9 @@ export default function Home() {
 
   useEffect(() => {
     if (habits.length === 0 || status !== "authenticated") return;
-    const now = new Date();
-    if (now.getSeconds() !== 0) return; 
+    
+    // Corrigido: Usando o state currentTime e removendo o limitador restritivo de segundos.
+    const now = currentTime; 
     
     const currentHourMin = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
     const todayStr = now.toLocaleDateString('pt-BR');
@@ -306,10 +305,9 @@ export default function Home() {
       if (!habit.isActive) return;
       if (habit.daysOfWeek && !habit.daysOfWeek.split(',').includes(todayDayOfWeek)) return;
 
-      // CORREÇÃO: Nova verificação de data para os alarmes baseada na conversão segura local
       const isCompleted = habit.logs.some(log => {
-        const d = new Date(log.date);
-        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+        return day === now.getDate() && (month - 1) === now.getMonth() && year === now.getFullYear();
       });
       if (isCompleted) return;
 
@@ -387,7 +385,7 @@ export default function Home() {
         setDisplayName(newUserName);
         setProfileModal(false);
         showToast("Perfil atualizado com sucesso!");
-        fetchUserStats(); 
+        fetchUserStats(); // Atualiza os dados locais
       }
     } catch (error) {
       showToast("Erro ao atualizar o perfil.");
@@ -507,17 +505,15 @@ export default function Home() {
     setHabits(habits.map(habit => {
       if (habit.id === id) {
         const today = new Date();
-        
-        // CORREÇÃO: Usando a nova verificação mais segura de fuso horário
         const isCompleted = habit.logs.some(log => {
-          const d = new Date(log.date);
-          return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+          const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+          return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
         });
         
         let newLogs = [];
         if (!isCompleted) {
-          // CORREÇÃO: Salvar com o timestamp de agora em ISO (Resolve o UTC gap perfeitamente)
-          newLogs = [{ date: new Date().toISOString() }, ...habit.logs];
+          const todayStr = new Date(today.getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
+          newLogs = [{ date: `${todayStr}T00:00:00.000Z` }, ...habit.logs];
           
           setXp(prev => {
             const next = prev + 10;
@@ -527,8 +523,8 @@ export default function Home() {
 
         } else {
           newLogs = habit.logs.filter(log => {
-              const d = new Date(log.date);
-              return !(d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear());
+              const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+              return !(day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear());
           });
 
           setXp(prev => {
@@ -621,6 +617,7 @@ export default function Home() {
                 </button>
               </div>
               
+              {/* INDICADOR DE FORÇA DA SENHA */}
               {authMode === "register" && password.length > 0 && (() => {
                 const strength = getPasswordStrength(password);
                 return (
@@ -668,12 +665,11 @@ export default function Home() {
     );
   }
 
-  // CORREÇÃO: Check na UI das stats diárias convertendo com new Date()
   const activeHabits = habits.filter(h => h.isActive).length;
   const completedToday = habits.filter(h => h.isActive && h.logs.some(l => {
-    const d = new Date(l.date);
+    const [year, month, day] = l.date.split('T')[0].split('-').map(Number);
     const today = new Date();
-    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
   })).length;
   const completionRate = activeHabits > 0 ? Math.round((completedToday / activeHabits) * 100) : 0;
   const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => calculateRealStreak(h.logs))) : 0;
@@ -935,14 +931,13 @@ export default function Home() {
           ) : (
             filteredHabits.map((habit) => {
               const today = new Date();
-              
-              // CORREÇÃO: Usando new Date() em vez de split('T') na renderização
               const isCompleted = habit.logs.some(log => {
-                const d = new Date(log.date);
-                return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+                const [year, month, day] = log.date.split('T')[0].split('-').map(Number);
+                return day === today.getDate() && (month - 1) === today.getMonth() && year === today.getFullYear();
               });
 
               const realStreak = calculateRealStreak(habit.logs);
+              // Usa a cor escolhida OU a gerada por ID caso seja antiga e não tenha cor salva
               const habitGradient = habit.color || COLOR_GRADIENTS[habit.id.charCodeAt(habit.id.length - 1) % COLOR_GRADIENTS.length];
               
               const isPaused = !habit.isActive;

@@ -17,6 +17,19 @@ export async function POST(request: Request, context: any) {
     const parts = url.pathname.split('/');
     const habitId = parts[parts.length - 2]; 
 
+    // Define a data atual no Brasil
+    let todayStr = getBrazilDateString(new Date()); 
+    
+    // Tenta receber a data exata do frontend (sincronia perfeita)
+    try {
+      const body = await request.json();
+      if (body.date) {
+        todayStr = body.date;
+      }
+    } catch (e) {
+      // Se não houver body (page antiga chamando), segue usando o todayStr gerado pelo backend
+    }
+
     const habit = await prisma.habit.findFirst({
       where: { id: habitId, userId: session.user.id },
       include: { logs: true },
@@ -31,12 +44,14 @@ export async function POST(request: Request, context: any) {
     });
     const currentXp = currentUser?.xp || 0;
 
-    const now = new Date();
-    const todayStr = getBrazilDateString(now); 
-    const normalizedDate = new Date(`${todayStr}T00:00:00.000Z`);
+    // A MÁGICA ACONTECE AQUI: 
+    // Salvamos ao MEIO-DIA (12:00 UTC). Assim, quando o navegador no Brasil (UTC-3) ler a data, 
+    // ela cairá às 09:00 da manhã do MESMO DIA, impedindo que ela volte para o dia anterior!
+    const normalizedDate = new Date(`${todayStr}T12:00:00.000Z`);
 
     const todayLog = habit.logs.find(log => {
-      const logDateStr = new Date(log.date).toISOString().split('T')[0];
+      // Garante que o split pegue apenas a string da data UTC (YYYY-MM-DD) do log salvo
+      const logDateStr = log.date.toISOString().split('T')[0];
       return logDateStr === todayStr;
     });
 
